@@ -37,13 +37,11 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Configuration ───────────────────────────────────────────────────
     config = FactorMiningConfig.from_yaml(args.config)
     config.gp.n_gen = args.n_gen
     config.gp.pop_size = args.pop_size
     print(f"=== Configuration: pop_size={config.gp.pop_size}, n_gen={config.gp.n_gen}, seed={args.seed}")
 
-    # ── Registre et pset ────────────────────────────────────────────────
     registry = FactorRegistry()
     factor_names = registry.list()
     pset = build_pset({n: registry.get(n) for n in factor_names})
@@ -52,39 +50,57 @@ def main():
     evaluator = CompositeFitness()
     runner = EvolutionRunner(pset, evaluator, config)
 
-    # ── Chargement du panel ─────────────────────────────────────────────
-    fixture_path = Path(__file__).parent / "tests" / "fixtures" / "synthetic_panel.pkl"
-    if not fixture_path.exists():
-        print("ERREUR: panel synthétique introuvable")
-        sys.exit(1)
+    # ── Chargement du panel réel ─────────────────────────────────────────
+    from factor_mining.data.loader import load_panel
+    panel = load_panel(config)
 
-    panel = pd.read_pickle(fixture_path)
     close = panel["close"]
-    fwd_returns = close.groupby(level="ticker", group_keys=False).transform(
+    fwd_returns_full = close.groupby(level="ticker", group_keys=False).transform(
         lambda x: x.pct_change(config.fitness.fwd_return_horizon_days).shift(-config.fitness.fwd_return_horizon_days)
     )
-    print(f"Panel: {panel.shape}, dates={panel.index.get_level_values('date_utc').nunique()}, tickers={panel.index.get_level_values('ticker').nunique()}")
 
-    # ── Pré-computation des facteurs ────────────────────────────────────
+    # ── IS / OOS split ──────────────────────────────────────────────────
+    #   IS: config.data.start → 2025-01-01  (evolution)
+    #   OOS: 2025-01-01 → config.data.end   (walk-forward validation)
+    is_cutoff = pd.Timestamp("2025-01-01", tz="UTC")
+    panel_is = panel[panel.index.get_level_values("date_utc") < is_cutoff].copy()
+    close_is = panel_is["close"]
+    fwd_returns_is = close_is.groupby(level="ticker", group_keys=False).transform(
+        lambda x: x.pct_change(config.fitness.fwd_return_horizon_days).shift(-config.fitness.fwd_return_horizon_days)
+    )
+    print(f"Panel IS: {len(panel_is)} rows, dates={panel_is.index.get_level_values('date_utc').nunique()}, "
+          f"tickers={panel_is.index.get_level_values('ticker').nunique()}")
+    print(f"Panel OOS: {len(panel) - len(panel_is)} rows from 2025 onwards")
+
+    # ── Pré-computation des facteurs (sur IS pour l'évolution) ─────────
     from copy import deepcopy
     factor_values = {}
     for name in factor_names:
         factor = registry.get(name)
-        factor_values[name] = factor.compute(panel).astype(float)
+        factor_values[name] = factor.compute(panel_is).astype(float)
 
     data_pset = deepcopy(pset)
     for name, series in factor_values.items():
         data_pset.context[name] = series
 
-    # ── Évolution NSGA-II ───────────────────────────────────────────────
-    print("\n=== Évolution NSGA-II en cours...")
-    pareto = runner.run(args.seed, panel, fwd_returns)
+    # ── Évolution NSGA-II (sur IS seulement) ────────────────────────────
+    print("\n=== Évolution NSGA-II en cours (IS: 2020 → 2025)...")
+    pareto = runner.run(args.seed, panel_is, fwd_returns_is)
     print(f"Front de Pareto: {len(pareto)} individus")
 
     export_pareto(pareto, str(output_dir))
     plot_pareto_3d(pareto, str(output_dir / "pareto_3d.png"))
 
-    # ── Backtest et validation pour chaque formule du front ─────────────
+    # ── Backtest et validation (sur panel complet IS+OOS) ──────────────
+    # Recompute data_pset on FULL panel for walk-forward backtest
+    factor_values_full = {}
+    for name in factor_names:
+        factor = registry.get(name)
+        factor_values_full[name] = factor.compute(panel).astype(float)
+    data_pset_full = deepcopy(pset)
+    for name, series in factor_values_full.items():
+        data_pset_full.context[name] = series
+
     portfolio = LongShortPortfolio(decile=config.backtest.long_short_decile)
     diagnostics = []
 
@@ -93,7 +109,8 @@ def main():
         formula = str(ind)
         f1, f2, f3 = ind.fitness.values
 
-        func = compile_tree(ind, data_pset)
+        # Signal on full data for walk-forward
+        func = compile_tree(ind, data_pset_full)
         if func is None:
             continue
         signal = func()
@@ -102,13 +119,13 @@ def main():
 
         weights = portfolio.construct(signal)
         weights_series = pd.Series(weights, index=signal.index)
-        returns = (weights_series * fwd_returns).groupby(level="date_utc").sum().dropna()
+        returns = (weights_series * fwd_returns_full).groupby(level="date_utc").sum().dropna()
 
         sr = sharpe(returns)
         mdd = max_drawdown(returns)
         to = turnover(weights.reshape(1, -1))
-        decay = ic_decay(signal, fwd_returns, [1, 3, 7, 14, 30])
-        ic_bootstrap = bootstrap_ic_confidence(signal, fwd_returns, n_bootstrap=200)
+        decay = ic_decay(signal, fwd_returns_full, [1, 3, 7, 14, 30])
+        ic_bootstrap = bootstrap_ic_confidence(signal, fwd_returns_full, n_bootstrap=200)
         sr_var = returns.var(ddof=0) / returns.mean() ** 2 if returns.mean() != 0 else 1.0
         dsr = deflated_sharpe(
             observed_sr=sr,
@@ -117,27 +134,34 @@ def main():
             n_obs=len(returns),
         )
 
-        # IS/OOS gap using walk-forward
+        # IS/OOS gap using walk-forward on full data
         from factor_mining.backtest.walk_forward import WalkForwardRunner
-        wf = WalkForwardRunner(is_days=config.backtest.is_days, oos_days=config.backtest.oos_days, step_days=config.backtest.step_days)
+        wf = WalkForwardRunner(is_days=config.backtest.is_days,
+                               oos_days=config.backtest.oos_days,
+                               step_days=config.backtest.step_days)
         windows = wf.get_windows(
             str(signal.index.get_level_values("date_utc").min().date()),
             str(signal.index.get_level_values("date_utc").max().date()),
         )
         oos_returns_list = []
         for w in windows:
-            mask_is = (signal.index.get_level_values("date_utc") >= w.is_start) & (signal.index.get_level_values("date_utc") < w.is_end)
-            mask_oos = (signal.index.get_level_values("date_utc") >= w.oos_start) & (signal.index.get_level_values("date_utc") < w.oos_end)
+            mask_is = (signal.index.get_level_values("date_utc") >= w.is_start) & \
+                      (signal.index.get_level_values("date_utc") < w.is_end)
+            mask_oos = (signal.index.get_level_values("date_utc") >= w.oos_start) & \
+                       (signal.index.get_level_values("date_utc") < w.oos_end)
             s_is = signal.loc[mask_is] if mask_is.any() else signal
             s_oos = signal.loc[mask_oos] if mask_oos.any() else signal
             w_is = portfolio.construct(s_is)
             w_oos = portfolio.construct(s_oos)
-            r_is = (pd.Series(w_is, index=s_is.index) * fwd_returns.loc[s_is.index]).groupby(level="date_utc").sum().dropna()
-            r_oos = (pd.Series(w_oos, index=s_oos.index) * fwd_returns.loc[s_oos.index]).groupby(level="date_utc").sum().dropna()
+            r_is = (pd.Series(w_is, index=s_is.index) * fwd_returns_full.loc[s_is.index]) \
+                   .groupby(level="date_utc").sum().dropna()
+            r_oos = (pd.Series(w_oos, index=s_oos.index) * fwd_returns_full.loc[s_oos.index]) \
+                    .groupby(level="date_utc").sum().dropna()
             oos_returns_list.append(r_oos)
             sr_is = sharpe(r_is) if len(r_is) > 5 else 0.0
-            sr_oos = sharpe(r_oos) if len(r_oos) > 5 else 0.0
-            gap_alert, gap_rel = is_oos_gap_alert(sr_is, sr_oos, threshold=config.validation.is_oos_gap_threshold)
+            sr_oos_val = sharpe(r_oos) if len(r_oos) > 5 else 0.0
+            gap_alert, gap_rel = is_oos_gap_alert(sr_is, sr_oos_val,
+                                                   threshold=config.validation.is_oos_gap_threshold)
 
         oos_returns = pd.concat(oos_returns_list).sort_index() if oos_returns_list else returns
         gap_alert, gap_rel = is_oos_gap_alert(sr, sharpe(oos_returns) if len(oos_returns) > 5 else 0.0)
@@ -162,7 +186,6 @@ def main():
         diagnostics.append(row)
         print(f"  [{i+1}/{len(pareto)}] IC={f1:.4f}  Sharpe={sr:.2f}  DD={mdd:.2%}  DSR={dsr:.3f}")
 
-    # ── Export des résultats ────────────────────────────────────────────
     export_diagnostics(diagnostics, str(output_dir))
 
     df = pd.DataFrame(diagnostics)
@@ -180,12 +203,13 @@ def main():
             str(output_dir / "ic_decay.png"),
         )
 
-        # Équity curve
-        func = compile_tree(pareto[best_idx], data_pset)
+        # Equity curve on full data, with OOS shaded
+        func = compile_tree(pareto[best_idx], data_pset_full)
         if func is not None:
             signal = func()
             weights = portfolio.construct(signal)
-            rets = (pd.Series(weights, index=signal.index) * fwd_returns).groupby(level="date_utc").sum().dropna()
+            rets = (pd.Series(weights, index=signal.index) * fwd_returns_full) \
+                   .groupby(level="date_utc").sum().dropna()
             plot_equity_curve(rets, str(output_dir / "equity_curve.png"))
 
     print(f"\n=== Terminé. Résultats dans {output_dir.resolve()}")

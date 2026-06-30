@@ -25,10 +25,11 @@ class BinanceFundingProvider:
 
         rows = []
         for entry in data:
+            mark_price_str = entry.get("markPrice", "0")
             rows.append({
                 "funding_time": pd.to_datetime(entry["fundingTime"], unit="ms", utc=True),
                 "funding_rate": float(entry["fundingRate"]),
-                "mark_price": float(entry.get("markPrice", 0)),
+                "mark_price": float(mark_price_str) if mark_price_str else 0.0,
             })
         df = pd.DataFrame(rows)
         if not df.empty:
