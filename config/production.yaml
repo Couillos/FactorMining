@@ -1,0 +1,22 @@
+data:
+  universe_source: coingecko
+  universe_size: 200
+  start: "2021-01-01"
+  end: "2024-12-31"
+  cache_dir: /data/cache
+  rate_limit_calls_per_min: 30
+
+gp:
+  pop_size: 200
+  n_gen: 100
+
+engine:
+  n_workers: 8
+
+backtest:
+  is_days: 365
+  oos_days: 90
+  step_days: 90
+
+reporting:
+  output_dir: /data/output

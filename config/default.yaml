@@ -1,0 +1,73 @@
+data:
+  universe_source: coingecko
+  universe_size: 200
+  start: "2023-01-01"
+  end: "2024-12-31"
+  cache_dir: ./cache
+  ohlcv_source: binance_futures
+  funding_source: binance_futures
+  taker_source: binance_futures
+  oi_source: bybit_v5
+  ls_source: bybit_v5
+  rate_limit_calls_per_min: 30
+  funding_lookahead_lag_ms: 1
+  nan_max_gap_days: 3
+
+factors:
+  pool:
+    - MOM_1D
+    - MOM_7D
+    - MOM_30D
+    - MOM_90D
+    - FUNDING_RATE
+    - FUNDING_RATE_ZS
+    - TAKER_BUY_RATIO
+    - TAKER_NET_VOLUME
+    - OI_CHANGE
+    - OI_USD
+    - LS_RATIO
+    - LS_RATIO_ZS
+    - VOL_30D
+    - LOG_MCAP
+    - AMIHUD
+    - SKEW_30D
+  winsorize_percentiles: [1, 99]
+  neutralize_category: true
+  category_source: coingecko
+
+gp:
+  pop_size: 100
+  n_gen: 50
+  min_depth: 2
+  max_depth: 4
+  max_nodes: 17
+  crossover_prob: 0.5
+  mutation_prob: 0.2
+  parsimony: 1.4
+
+engine:
+  elite_ratio: 0.10
+  tournament_size: 2
+  mu: 100
+  lambda_: 100
+  n_workers: -1
+
+fitness:
+  fwd_return_horizon_days: 7
+
+backtest:
+  is_days: 365
+  oos_days: 90
+  step_days: 90
+  long_short_decile: 0.20
+  transaction_cost_bps: 5
+
+validation:
+  deflated_sharpe_n_trials: 5000
+  jaccard_k_runs: 10
+  jaccard_threshold: 0.7
+  permutation_n: 1000
+  is_oos_gap_threshold: 0.50
+
+reporting:
+  output_dir: ./output

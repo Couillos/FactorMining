@@ -1,0 +1,41 @@
+[project]
+name = "factor_mining"
+version = "2.1.0"
+description = "AI-powered factor mining system via Genetic Programming for crypto markets"
+requires-python = ">=3.12"
+dependencies = [
+    "deap==1.4.0",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scipy>=1.13",
+    "ccxt>=4.3",
+    "httpx>=0.27",
+    "tenacity>=8.3",
+    "pyarrow>=16.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "matplotlib>=3.9",
+    "statsmodels>=0.14",
+    "typing-extensions>=4.12",
+    "python-dateutil>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-xdist>=3.5",
+    "hypothesis>=6.100",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
