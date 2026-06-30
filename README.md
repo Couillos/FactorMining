@@ -43,24 +43,24 @@ Discovered formulas are exported in CSV and pickle formats for analysis.
 
 ```
                      ┌─────────────────────────────┐
-                     │     YAML Configuration        │
-                     │   (FactorMiningConfig)        │
+                     │     YAML Configuration      │
+                     │   (FactorMiningConfig)      │
                      └──────────┬──────────────────┘
                                 │
               ┌─────────────────┼─────────────────┐
-              ▼                 ▼                  ▼
+              ▼                 ▼                 ▼
      ┌──────────────┐   ┌──────────────┐   ┌─────────────┐
      │  Data Layer  │   │FactorRegistry│   │  GP Engine  │
      │ (providers,  │   │(16 factors)  │   │ (pset,      │
      │  cache,      │   │              │   │  primitives,│
      │  cleaner)    │   │              │   │  operators) │
      └──────────────┘   └──────────────┘   └──────┬──────┘
-                                │                  │
-                                ▼                  ▼
+                                │                 │
+                                ▼                 ▼
                      ┌──────────────────────────────┐
-                     │      NSGA2Engine              │
-                     │  (genetic evolution,          │
-                     │   Pareto front)               │
+                     │      NSGA2Engine             │
+                     │  (genetic evolution,         │
+                     │   Pareto front)              │
                      └──────────────┬───────────────┘
                                     │
               ┌─────────────────────┼─────────────────────┐
