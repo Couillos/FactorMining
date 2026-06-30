@@ -1,41 +1,41 @@
-# Factor Mining — Découverte de Facteurs par Programmation Génétique
+# Factor Mining — Discovering Factors via Genetic Programming
 
-Système de *factor mining* pour les marchés crypto utilisant la **programmation génétique (GP)** et l'optimisation multi-objectifs **NSGA-II** afin de découvrir des formules de signaux de trading statistiquement significatives.
+A **factor mining** system for crypto markets using **Genetic Programming (GP)** and **NSGA-II** multi-objective optimization to discover statistically significant trading signal formulas.
 
 ---
 
-## Table des matières
+## Table of Contents
 
-- [Vue d'ensemble](#vue-densemble)
+- [Overview](#overview)
 - [Architecture](#architecture)
-- [Prérequis](#prérequis)
+- [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Configuration](#configuration)
-- [Utilisation](#utilisation)
-- [Pipeline de données](#pipeline-de-données)
-- [Facteurs](#facteurs)
-- [Programmation Génétique](#programmation-génétique)
-- [Fitness multi-objectifs](#fitness-multi-objectifs)
+- [Usage](#usage)
+- [Data Pipeline](#data-pipeline)
+- [Factors](#factors)
+- [Genetic Programming](#genetic-programming)
+- [Multi-objective Fitness](#multi-objective-fitness)
 - [Backtest](#backtest)
 - [Validation](#validation)
 - [Reporting](#reporting)
 - [Tests](#tests)
-- [Structure du projet](#structure-du-projet)
+- [Project Structure](#project-structure)
 
 ---
 
-## Vue d'ensemble
+## Overview
 
-Le système combine :
+The system combines:
 
-1. **16 facteurs fondamentaux** du marché crypto (momentum, funding, taker flow, open interest, volatilité, taille, liquidité, skewness)
-2. **8 primitives d'ingénierie** (rank, zscore, winsorize, neutralize, ts_mean, ts_std, delta, ts_rank)
-3. **Programmation Génétique typée** pour composer des formules complexes à partir de ces briques
-4. **Optimisation NSGA-II** sur 3 objectifs : Rank IC, stabilité, diversité
-5. **Backtest walk-forward** avec portefeuille long/short
-6. **Validation statistique** (DSR, CPCV, bootstrap IC, test de permutation, stabilité Jaccard)
+1. **16 fundamental crypto market factors** (momentum, funding, taker flow, open interest, volatility, size, liquidity, skewness)
+2. **8 engineering primitives** (rank, zscore, winsorize, neutralize, ts_mean, ts_std, delta, ts_rank)
+3. **Typed Genetic Programming** to compose complex formulas from these building blocks
+4. **NSGA-II optimization** over 3 objectives: Rank IC, stability, diversity
+5. **Walk-forward backtest** with long/short portfolio
+6. **Statistical validation** (DSR, CPCV, bootstrap IC, permutation test, Jaccard stability)
 
-Les formules découvertes sont exportées au format CSV et pickle pour analyse.
+Discovered formulas are exported in CSV and pickle formats for analysis.
 
 ---
 
@@ -43,24 +43,24 @@ Les formules découvertes sont exportées au format CSV et pickle pour analyse.
 
 ```
                      ┌─────────────────────────────┐
-                     │     Configuration YAML       │
-                     │   (FactorMiningConfig)       │
+                     │     YAML Configuration        │
+                     │   (FactorMiningConfig)        │
                      └──────────┬──────────────────┘
                                 │
               ┌─────────────────┼─────────────────┐
               ▼                 ▼                  ▼
      ┌──────────────┐   ┌──────────────┐   ┌─────────────┐
      │  Data Layer  │   │FactorRegistry│   │  GP Engine  │
-     │ (providers,  │   │(16 facteurs) │   │ (pset,      │
+     │ (providers,  │   │(16 factors)  │   │ (pset,      │
      │  cache,      │   │              │   │  primitives,│
      │  cleaner)    │   │              │   │  operators) │
      └──────────────┘   └──────────────┘   └──────┬──────┘
                                 │                  │
                                 ▼                  ▼
                      ┌──────────────────────────────┐
-                     │      NSGA2Engine             │
-                     │  (évolution génétique,       │
-                     │   Pareto front)              │
+                     │      NSGA2Engine              │
+                     │  (genetic evolution,          │
+                     │   Pareto front)               │
                      └──────────────┬───────────────┘
                                     │
               ┌─────────────────────┼─────────────────────┐
@@ -73,43 +73,43 @@ Les formules découvertes sont exportées au format CSV et pickle pour analyse.
      └──────────────┘     └──────────────┘     └──────────────┘
 ```
 
-### Flux d'exécution
+### Execution Flow
 
-1. Chargement de la configuration YAML → `FactorMiningConfig` (Pydantic)
-2. Instanciation du registre de 16 facteurs → `FactorRegistry`
-3. Construction du *PrimitiveSet* typé DEAP → `build_pset()` + `register_primitives()`
-4. Création de l'évaluateur multi-objectifs → `CompositeFitness`
-5. Exécution de l'évolution NSGA-II → `NSGA2Engine.run()`
-6. Export du front de Pareto → CSV + Pickle
-7. (Optionnel) Backtest walk-forward + validation statistique + rapports
+1. Load YAML configuration → `FactorMiningConfig` (Pydantic)
+2. Instantiate the 16-factor registry → `FactorRegistry`
+3. Build typed DEAP `PrimitiveSet` → `build_pset()` + `register_primitives()`
+4. Create multi-objective evaluator → `CompositeFitness`
+5. Run NSGA-II evolution → `NSGA2Engine.run()`
+6. Export Pareto front → CSV + Pickle
+7. (Optional) Walk-forward backtest + statistical validation + reports
 
 ---
 
-## Prérequis
+## Prerequisites
 
 - **Python ≥ 3.12**
-- **pip** ou **uv**
+- **pip** or **uv**
 
 ---
 
 ## Installation
 
 ```bash
-# Cloner le dépôt
+# Clone the repo
 cd factor_mining
 
-# Créer un environnement virtuel
+# Create a virtual environment
 python -m venv .venv
 source .venv/bin/activate
 
-# Installation du package en mode développement
+# Install the package in development mode
 pip install -e .
 
-# Ou avec uv
+# Or with uv
 uv pip install -e .
 ```
 
-### Installation des dépendances de développement
+### Install development dependencies
 
 ```bash
 pip install -e ".[dev]"
@@ -119,7 +119,7 @@ pip install -e ".[dev]"
 
 ## Configuration
 
-La configuration se fait via un fichier YAML. Un fichier par défaut se trouve dans `config/default.yaml` :
+Configuration is done via a YAML file. A default file is located at `config/default.yaml`:
 
 ```yaml
 data:
@@ -151,7 +151,7 @@ engine:
   tournament_size: 2
   mu: 100
   lambda_: 100
-  n_workers: -1         # -1 = tous les cœurs
+  n_workers: -1         # -1 = all cores
 
 fitness:
   fwd_return_horizon_days: 7
@@ -173,40 +173,40 @@ reporting:
   output_dir: ./output
 ```
 
-### Sections de configuration
+### Configuration sections
 
 | Section | Description |
 |---|---|
-| `data` | Sources de données, période, répertoire de cache |
-| `factors` | Pool de facteurs, winsorisation, neutralisation sectorielle |
-| `gp` | Paramètres de la programmation génétique (taille pop, profondeur, mutations) |
-| `engine` | Paramètres NSGA-II (élitisme, taille tournoi, parallélisme) |
-| `fitness` | Horizon des forward returns |
-| `backtest` | Fenêtres walk-forward, decile, coûts de transaction |
-| `validation` | Nombre de bootsrap/permutations, seuils |
-| `reporting` | Répertoire de sortie |
+| `data` | Data sources, time range, cache directory |
+| `factors` | Factor pool, winsorization, sector neutralization |
+| `gp` | Genetic programming parameters (pop size, depth, mutations) |
+| `engine` | NSGA-II parameters (elitism, tournament size, parallelism) |
+| `fitness` | Forward return horizon |
+| `backtest` | Walk-forward windows, decile, transaction costs |
+| `validation` | Bootstrap/permutation counts, thresholds |
+| `reporting` | Output directory |
 
 ---
 
-## Utilisation
+## Usage
 
-### Lancement de l'évolution
+### Launching evolution
 
 ```bash
 python -m factor_mining.cli --config config/default.yaml --seed 42 --output-dir ./output
 ```
 
-Arguments :
+Arguments:
 
-| Argument | Défaut | Description |
+| Argument | Default | Description |
 |---|---|---|
-| `--config` | `config/default.yaml` | Fichier de configuration YAML |
-| `--seed` | `42` | Graine aléatoire (reproductibilité) |
-| `--output-dir` | `./output` | Répertoire des résultats |
+| `--config` | `config/default.yaml` | YAML configuration file |
+| `--seed` | `42` | Random seed (reproducibility) |
+| `--output-dir` | `./output` | Results directory |
 
-Le système charge un panel synthétique de test depuis `tests/fixtures/synthetic_panel.pkl` s'il existe. En production, remplacez par des données réelles via les providers.
+The system loads a synthetic test panel from `tests/fixtures/synthetic_panel.pkl` if it exists. In production, replace with real data via the providers.
 
-### Exemple de production
+### Production example
 
 ```bash
 python -m factor_mining.cli --config config/production.yaml --seed 12345
@@ -214,24 +214,24 @@ python -m factor_mining.cli --config config/production.yaml --seed 12345
 
 ---
 
-## Pipeline de données
+## Data Pipeline
 
 ### Providers
 
-Six connecteurs API pour les données crypto :
+Six API connectors for crypto data:
 
-| Provider | Source | Données |
+| Provider | Source | Data |
 |---|---|---|
-| `BinanceOHLCVProvider` | Binance Futures (ccxt) | OHLCV quotidien |
-| `BinanceFundingProvider` | Binance REST `fapi/v1/fundingRate` | Taux de funding 8h |
-| `BinanceTakerProvider` | Binance REST `fapi/v1/klines` | Volume taker buy/sell |
+| `BinanceOHLCVProvider` | Binance Futures (ccxt) | Daily OHLCV |
+| `BinanceFundingProvider` | Binance REST `fapi/v1/fundingRate` | 8h funding rate |
+| `BinanceTakerProvider` | Binance REST `fapi/v1/klines` | Taker buy/sell volume |
 | `BybitOpenInterestProvider` | Bybit V5 `market/open-interest` | Open interest |
-| `BybitLSRatioProvider` | Bybit V5 `market/account-ratio` | Ratio long/short |
-| `CoinGeckoClient` | CoinGecko API v3 | Top cryptos par market cap, catégories |
+| `BybitLSRatioProvider` | Bybit V5 `market/account-ratio` | Long/short ratio |
+| `CoinGeckoClient` | CoinGecko API v3 | Top cryptos by market cap, categories |
 
 ### Cache
 
-`ParquetCache` — stockage sur disque au format Parquet, partitionné par `année/mois.parquet`.
+`ParquetCache` — disk storage in Parquet format, partitioned by `year/month.parquet`.
 
 ```python
 from factor_mining.data.cache import ParquetCache
@@ -240,55 +240,55 @@ cache.write("btc_ohlcv", dataframe)
 df = cache.read("btc_ohlcv")
 ```
 
-### Nettoyage
+### Cleaning
 
-`clean_panel()` applique dans l'ordre :
-1. **Harmonisation des symboles** : `BTCUSDT` / `SOL_USDT` / `BNB/USDT` → `BTC/USDT` / `SOL/USDT` / `BNB/USDT`
-2. **Normalisation des timestamps** : suppression du fuseau horaire
-3. **Lag du funding rate** : décalage de 1 période pour éviter le lookahead bias
-4. **Forward-fill limité** : comble les NaN seulement si l'écart ≤ `max_gap` (défaut 3 jours)
+`clean_panel()` applies in order:
+1. **Symbol harmonization**: `BTCUSDT` / `SOL_USDT` / `BNB/USDT` → `BTC/USDT` / `SOL/USDT` / `BNB/USDT`
+2. **Timestamp normalization**: remove timezone info
+3. **Funding rate lag**: shift by 1 period to avoid lookahead bias
+4. **Limited forward-fill**: fills NaN only if gap ≤ `max_gap` (default 3 days)
 
 ---
 
-## Facteurs
+## Factors
 
-### 16 facteurs de base
+### 16 base factors
 
-| Facteur | Catégorie | Définition |
+| Factor | Category | Definition |
 |---|---|---|
-| `MOM_1D` | Momentum | Rendement quotidien |
-| `MOM_7D` | Momentum | Rendement sur 7 jours |
-| `MOM_30D` | Momentum | Rendement sur 30 jours |
-| `MOM_90D` | Momentum | Rendement sur 90 jours |
-| `FUNDING_RATE` | Funding | Taux de funding (laggé) |
-| `FUNDING_RATE_ZS` | Funding | Z-score du funding sur 30j |
-| `TAKER_BUY_RATIO` | Taker Flow | Ratio d'achats taker |
-| `TAKER_NET_VOLUME` | Taker Flow | Volume net taker |
-| `OI_CHANGE` | Open Interest | Variation quotidienne de l'OI |
-| `OI_USD` | Open Interest | Log de l'OI en USD |
-| `LS_RATIO` | Long/Short | Ratio long/short (laggé) |
-| `LS_RATIO_ZS` | Long/Short | Z-score du LS ratio sur 30j |
-| `VOL_30D` | Volatilité | Écart-type des rendements 30j |
-| `LOG_MCAP` | Taille | Log de la capitalisation |
-| `AMIHUD` | Liquidité | Ratio d'Amihud |
-| `SKEW_30D` | Skewness | Asymétrie des rendements 30j |
+| `MOM_1D` | Momentum | Daily return |
+| `MOM_7D` | Momentum | 7-day return |
+| `MOM_30D` | Momentum | 30-day return |
+| `MOM_90D` | Momentum | 90-day return |
+| `FUNDING_RATE` | Funding | Funding rate (lagged) |
+| `FUNDING_RATE_ZS` | Funding | 30-day z-score of funding |
+| `TAKER_BUY_RATIO` | Taker Flow | Taker buy ratio |
+| `TAKER_NET_VOLUME` | Taker Flow | Net taker volume |
+| `OI_CHANGE` | Open Interest | Daily OI change |
+| `OI_USD` | Open Interest | Log OI in USD |
+| `LS_RATIO` | Long/Short | Long/short ratio (lagged) |
+| `LS_RATIO_ZS` | Long/Short | 30-day z-score of LS ratio |
+| `VOL_30D` | Volatility | 30-day return std |
+| `LOG_MCAP` | Size | Log market cap |
+| `AMIHUD` | Liquidity | Amihud ratio |
+| `SKEW_30D` | Skewness | 30-day return skewness |
 
-### Primitives de composition
+### Composition primitives
 
-Utilisées comme opérateurs dans les arbres GP :
+Used as operators in GP trees:
 
-| Fonction | Signature | Comportement |
+| Function | Signature | Behavior |
 |---|---|---|
-| `rank(s)` | `Panel → Panel` | Rang cross-sectionnel (percentile par date) |
-| `zscore(s)` | `Panel → Panel` | Z-score cross-sectionnel par date |
-| `winsor(s)` | `Panel → Panel` | Winsorisation [1%, 99%] |
-| `neutralize(s, d)` | `Panel → Panel` | Résidus OLS par catégorie |
-| `ts_mean(s, w)` | `Panel × int → Panel` | Moyenne roulante par ticker |
-| `ts_std(s, w)` | `Panel × int → Panel` | Écart-type roulant par ticker |
-| `delta(s, w)` | `Panel × int → Panel` | Différence sur w périodes |
-| `ts_rank(s, w)` | `Panel × int → Panel` | Rang roulant par ticker |
+| `rank(s)` | `Panel → Panel` | Cross-sectional rank (percentile by date) |
+| `zscore(s)` | `Panel → Panel` | Cross-sectional z-score by date |
+| `winsor(s)` | `Panel → Panel` | Winsorization [1%, 99%] |
+| `neutralize(s, d)` | `Panel → Panel` | OLS residuals by category |
+| `ts_mean(s, w)` | `Panel × int → Panel` | Rolling mean per ticker |
+| `ts_std(s, w)` | `Panel × int → Panel` | Rolling std per ticker |
+| `delta(s, w)` | `Panel × int → Panel` | Difference over w periods |
+| `ts_rank(s, w)` | `Panel × int → Panel` | Rolling rank per ticker |
 
-### Pipeline canonique
+### Canonical pipeline
 
 ```python
 from factor_mining.factors.transforms import canonical_pipeline
@@ -299,22 +299,22 @@ signal = canonical_pipeline(panel, category_dummies)
 
 ---
 
-## Programmation Génétique
+## Genetic Programming
 
-### Typage
+### Typing
 
-Le système utilise `deap.gp.PrimitiveSetTyped` avec deux types :
+The system uses `deap.gp.PrimitiveSetTyped` with two types:
 
-- **`Panel`** (`pd.Series`) — série temporelle cross-sectionnelle indexée par `(date_utc, ticker)`
-- **`Window`** (`int`) — fenêtre pour les opérations roulantes
+- **`Panel`** (`pd.Series`) — cross-sectional time series indexed by `(date_utc, ticker)`
+- **`Window`** (`int`) — window for rolling operations
 
-Le typage assure que seules des combinaisons valides sont générées :
+Typing ensures only valid combinations are generated:
 - `Panel + Panel → Panel`
 - `Panel + Window → Panel`
-- Les facteurs de base sont des terminaux de type `Panel`
-- Les fenêtres (7, 14, 30, 90) sont des terminaux de type `Window`
+- Base factors are `Panel`-typed terminals
+- Windows (7, 14, 30, 90) are `Window`-typed terminals
 
-### Génération d'arbres
+### Tree generation
 
 ```python
 from factor_mining.gp.typed_pset import gen_safe
@@ -325,47 +325,47 @@ func = compile_tree(tree, pset)
 signal = func()
 ```
 
-### Opérateurs génétiques
+### Genetic operators
 
-- **Crossover** : échange de sous-arbres (`subtree_crossover`)
-- **Mutation** : remplacement de sous-arbre (`subtree_mutation`)
-- **Point mutation** : remplacement d'un nœud (`point_mutation`)
-- **Contrôle du bloat** : limite à `max_nodes` avec facteur de parcimonie
+- **Crossover**: subtree exchange (`subtree_crossover`)
+- **Mutation**: subtree replacement (`subtree_mutation`)
+- **Point mutation**: single node replacement (`point_mutation`)
+- **Bloat control**: capped at `max_nodes` with parsimony factor
 
-### Cache de sous-arbres
+### Subtree cache
 
-`SubtreeCache` — cache LRU (SHA256 de l'arbre vers fitness) évitant de réévaluer les mêmes formules.
+`SubtreeCache` — LRU cache (SHA256 tree → fitness) that avoids re-evaluating identical formulas.
 
 ---
 
-## Fitness multi-objectifs
+## Multi-objective Fitness
 
-`CompositeFitness` combine trois objectifs :
+`CompositeFitness` combines three objectives:
 
 ### 1. Rank IC (Information Coefficient)
 
-Corrélation de Spearman quotidienne entre le signal et les forward returns N jours.
+Daily Spearman correlation between the signal and N-day forward returns.
 
 ```
 IC_t = spearman(signal_t, fwd_returns_t)
-RankIC = mean(IC_t)  (sur toutes les dates)
+RankIC = mean(IC_t)  (over all dates)
 ```
 
-### 2. Stabilité
+### 2. Stability
 
-Ratio de Sharpe de l'IC : `mean(IC) / std(IC)`. Puni les signaux avec une IC volatile.
+Sharpe ratio of the IC: `mean(IC) / std(IC)`. Penalizes signals with volatile IC.
 
-### 3. Diversité
+### 3. Diversity
 
-Pénalité de corrélation avec les 16 facteurs de base : `1 - mean(|corr(signal, base_factor)|)`.
+Correlation penalty against the 16 base factors: `1 - mean(|corr(signal, base_factor)|)`.
 
-Un signal invalide retourne `(-99.0, -99.0, 0.0)` et est exclu de la sélection.
+An invalid signal returns `(-99.0, -99.0, 0.0)` and is excluded from selection.
 
 ---
 
 ## Backtest
 
-### Portefeuille long/short
+### Long/short portfolio
 
 ```python
 from factor_mining.backtest.portfolio import LongShortPortfolio
@@ -382,18 +382,18 @@ from factor_mining.backtest.walk_forward import WalkForwardRunner
 
 wf = WalkForwardRunner(is_days=365, oos_days=90, step_days=90)
 windows = wf.get_windows("2023-01-01", "2024-12-31")
-# Génère des fenêtres [365j IS + 90j OOS] glissantes tous les 90j
+# Generates sliding [365d IS + 90d OOS] windows every 90d
 ```
 
-### Métriques
+### Metrics
 
-| Métrique | Description |
+| Metric | Description |
 |---|---|
-| `sharpe(returns)` | Ratio de Sharpe annualisé |
-| `max_drawdown(returns)` | Drawdown maximal |
-| `turnover(weights)` | Turnover moyen du portefeuille |
-| `ic_decay(signal, fwd, horizons)` | Courbe de decay de l'IC |
-| `category_exposure(weights, dummies)` | Exposition sectorielle |
+| `sharpe(returns)` | Annualized Sharpe ratio |
+| `max_drawdown(returns)` | Maximum drawdown |
+| `turnover(weights)` | Average portfolio turnover |
+| `ic_decay(signal, fwd, horizons)` | IC decay curve |
+| `category_exposure(weights, dummies)` | Sector exposure |
 
 ---
 
@@ -401,39 +401,39 @@ windows = wf.get_windows("2023-01-01", "2024-12-31")
 
 ### Deflated Sharpe Ratio (DSR)
 
-Corrige le ratio de Sharpe observé pour le nombre d'essais (data mining bias). Retourne la probabilité que le Sharpe soit significatif.
+Corrects the observed Sharpe ratio for the number of trials (data mining bias). Returns the probability that the Sharpe is significant.
 
 ### Jaccard Stability
 
-Mesure la stabilité des formules découvertes sur K runs via l'indice de Jaccard. Un score > 0.7 indique des formules robustes.
+Measures formula stability over K runs using the Jaccard index. A score > 0.7 indicates robust formulas.
 
 ### Combinatorial Purged Cross-Validation (CPCV)
 
-Validation croisée purgée de Lopez de Prado : teste la stabilité du signal sur différentes fenêtres temporelles.
+Lopez de Prado's purged cross-validation: tests signal stability across different time windows.
 
 ### Bootstrap IC
 
-Intervalle de confiance de l'IC par bootstrap (1000 réplications).
+Confidence interval for IC via bootstrap (1000 replications).
 
-### Test de Permutation
+### Permutation Test
 
-Test non-paramétrique : mélange des forward returns pour estimer la significativité de l'IC.
+Non-parametric test: shuffles forward returns to estimate IC significance.
 
-### Alarme IS/OOS
+### IS/OOS Alert
 
-Détection d'écart significatif entre les performances in-sample et out-of-sample.
+Detects significant gaps between in-sample and out-of-sample performance.
 
 ---
 
 ## Reporting
 
-Le front de Pareto est exporté dans le répertoire de sortie :
+The Pareto front is exported to the output directory:
 
 ```
 output/
-├── pareto_front.csv      # Formules + fitness values
-├── pareto_front.pkl      # Objet Python complet
-└── diagnostics.csv       # Statistiques d'évolution
+├── pareto_front.csv      # Formulas + fitness values
+├── pareto_front.pkl      # Full Python object
+└── diagnostics.csv       # Evolution statistics
 ```
 
 ---
@@ -441,54 +441,54 @@ output/
 ## Tests
 
 ```bash
-# Tous les tests (sans appels API)
+# All tests (no API calls)
 make test
-# ou
+# or
 pytest tests/ -v --cov
 
-# Tests unitaires uniquement
+# Unit tests only
 pytest tests/unit/ -v
 
-# Tests d'intégration (sans API)
+# Integration tests (no API)
 pytest tests/integration/ -v -k "not smoke"
 
-# Tests avec appels API réels
+# Tests with real API calls
 pytest tests/integration/ -v -k "smoke"
 
 # Linting
 make lint
 
-# Audit de conformité
+# Compliance audit
 make audit
 ```
 
-Le projet contient :
-- **47 tests unitaires** (vérification du cœur métier)
-- **67 tests d'intégration sans API** (pipeline complet sur données synthétiques)
-- **14 tests smoke** (connexions réelles aux API Binance, Bybit, CoinGecko)
+The project contains:
+- **47 unit tests** (core business logic)
+- **67 integration tests without API** (full pipeline on synthetic data)
+- **14 smoke tests** (real connections to Binance, Bybit, CoinGecko)
 
 ---
 
-## Structure du projet
+## Project Structure
 
 ```
 factor_mining/
 ├── config/
-│   ├── default.yaml          # Configuration par défaut
-│   └── production.yaml       # Configuration production
+│   ├── default.yaml          # Default configuration
+│   └── production.yaml       # Production configuration
 ├── src/
 │   └── factor_mining/
-│       ├── cli.py             # Point d'entrée CLI
+│       ├── cli.py             # CLI entry point
 │       ├── core/
-│       │   ├── config.py      # Configuration Pydantic
+│       │   ├── config.py      # Pydantic configuration
 │       │   ├── types.py       # Type aliases (Panel, Window)
 │       │   ├── interfaces.py  # Protocols (FactorProvider, FitnessEvaluator)
-│       │   ├── exceptions.py  # Exceptions métier
+│       │   ├── exceptions.py  # Business exceptions
 │       │   └── chromosome.py  # TreeChromosome dataclass
 │       ├── data/
 │       │   ├── interfaces.py  # DataProvider ABC
 │       │   ├── cache.py       # ParquetCache
-│       │   ├── cleaner.py     # Harmonisation, normalisation, fill
+│       │   ├── cleaner.py     # Harmonization, normalization, fill
 │       │   ├── coingecko_client.py
 │       │   ├── binance_ohlcv.py
 │       │   ├── binance_funding.py
@@ -523,7 +523,7 @@ factor_mining/
 │       │   └── selection.py
 │       ├── fitness/
 │       │   ├── interfaces.py
-│       │   ├── composite.py    # CompositeFitness (3 objectifs)
+│       │   ├── composite.py    # CompositeFitness (3 objectives)
 │       │   ├── rank_ic.py
 │       │   ├── stability.py
 │       │   ├── diversity.py
@@ -547,8 +547,8 @@ factor_mining/
 │   ├── conftest.py
 │   ├── fixtures/
 │   │   └── synthetic_panel.pkl
-│   ├── unit/                  # 47 tests unitaires
-│   └── integration/           # 81 tests d'intégration
+│   ├── unit/                  # 47 unit tests
+│   └── integration/           # 81 integration tests
 ├── scripts/
 │   └── audit_check.py
 ├── Makefile
@@ -558,6 +558,6 @@ factor_mining/
 
 ---
 
-## Licence
+## License
 
-Projet interne — usage réservé.
+Internal project — restricted use.
