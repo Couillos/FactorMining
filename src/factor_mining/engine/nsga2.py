@@ -2,13 +2,37 @@ from deap import base, creator, tools, gp
 import numpy as np
 import pandas as pd
 import random
+import os
 from copy import deepcopy
+from multiprocessing import Pool
 
 from factor_mining.gp.compiler import compile_tree
 from factor_mining.gp.subtree_cache import SubtreeCache
 from factor_mining.gp.operators import subtree_crossover, subtree_mutation
 from factor_mining.gp.typed_pset import gen_safe
 from factor_mining.factors.registry import FactorRegistry
+
+
+_WORKER_DATA: dict = {}
+
+def _init_worker(fwd_returns, data_pset, evaluator):
+    _WORKER_DATA['fwd_returns'] = fwd_returns
+    _WORKER_DATA['data_pset'] = data_pset
+    _WORKER_DATA['evaluator'] = evaluator
+
+
+def _evaluate_worker(ind_tree):
+    data = _WORKER_DATA
+    func = compile_tree(ind_tree, data['data_pset'])
+    if func is None:
+        return (-99.0, -99.0, 0.0)
+    try:
+        signal = func()
+        if signal is None or (isinstance(signal, pd.Series) and signal.isna().all()):
+            return (-99.0, -99.0, 0.0)
+        return data['evaluator'].evaluate(signal, data['fwd_returns'])
+    except Exception:
+        return (-99.0, -99.0, 0.0)
 
 
 class NSGA2Engine:
@@ -18,6 +42,7 @@ class NSGA2Engine:
         self.config = config
         self.cache = SubtreeCache()
         self.registry = FactorRegistry()
+        self._pool = None
         self._init_toolbox()
 
     def _init_toolbox(self):
@@ -44,6 +69,29 @@ class NSGA2Engine:
             data_pset.context[name] = series
         return data_pset
 
+    def _evaluate_population(self, individuals):
+        to_eval = []
+        indices = []
+        for i, ind in enumerate(individuals):
+            cached = self.cache.get(ind)
+            if cached is not None:
+                ind.fitness.values = cached
+            else:
+                to_eval.append(ind)
+                indices.append(i)
+
+        if not to_eval:
+            return
+
+        if self._pool is not None:
+            results = self._pool.map(_evaluate_worker, to_eval)
+        else:
+            results = [_evaluate_worker(ind) for ind in to_eval]
+
+        for idx, fitness in zip(indices, results):
+            individuals[idx].fitness.values = fitness
+            self.cache.put(individuals[idx], fitness)
+
     def run(self, seed: int, panel, fwd_returns):
         random.seed(seed)
         np.random.seed(seed)
@@ -51,49 +99,43 @@ class NSGA2Engine:
         factor_values = self._precompute_factors(panel)
         data_pset = self._make_data_pset(factor_values)
 
-        pop = self.toolbox.population(n=self.config.gp.pop_size)
+        n_workers = self.config.engine.n_workers
+        if n_workers == -1:
+            n_workers = os.cpu_count() or 1
 
-        for ind in pop:
-            ind.fitness.values = self._evaluate(ind, fwd_returns, data_pset)
-
-        for gen in range(self.config.gp.n_gen):
-            offspring = tools.selNSGA2(pop, len(pop))
-            offspring = [self.toolbox.clone(ind) for ind in offspring]
-
-            for i in range(1, len(offspring), 2):
-                if random.random() < self.config.gp.crossover_prob:
-                    subtree_crossover(offspring[i - 1], offspring[i], self.pset)
-                if random.random() < self.config.gp.mutation_prob:
-                    subtree_mutation(offspring[i], self.pset)
-                    if random.random() < self.config.gp.mutation_prob:
-                        subtree_mutation(offspring[i - 1], self.pset)
-
-            for ind in offspring:
-                ind.fitness.values = self._evaluate(ind, fwd_returns, data_pset)
-
-            pop = tools.selNSGA2(pop + offspring, len(pop))
-
-        hof = tools.ParetoFront()
-        hof.update(pop)
-        return hof
-
-    def _evaluate(self, ind, fwd_returns, data_pset):
-        cached = self.cache.get(ind)
-        if cached is not None:
-            return cached
-
-        func = compile_tree(ind, data_pset)
-        if func is None:
-            fitness = (-99.0, -99.0, 0.0)
+        self._pool = None
+        if n_workers and n_workers > 1:
+            self._pool = Pool(n_workers, initializer=_init_worker,
+                              initargs=(fwd_returns, data_pset, self.evaluator))
         else:
-            try:
-                signal = func()
-                if signal is None or (isinstance(signal, pd.Series) and signal.isna().all()):
-                    fitness = (-99.0, -99.0, 0.0)
-                else:
-                    fitness = self.evaluator.evaluate(signal, fwd_returns)
-            except Exception:
-                fitness = (-99.0, -99.0, 0.0)
+            _init_worker(fwd_returns, data_pset, self.evaluator)
 
-        self.cache.put(ind, fitness)
-        return fitness
+        try:
+            pop = self.toolbox.population(n=self.config.gp.pop_size)
+
+            self._evaluate_population(pop)
+
+            for gen in range(self.config.gp.n_gen):
+                offspring = tools.selNSGA2(pop, len(pop))
+                offspring = [self.toolbox.clone(ind) for ind in offspring]
+
+                for i in range(1, len(offspring), 2):
+                    if random.random() < self.config.gp.crossover_prob:
+                        subtree_crossover(offspring[i - 1], offspring[i], self.pset)
+                    if random.random() < self.config.gp.mutation_prob:
+                        subtree_mutation(offspring[i], self.pset)
+                        if random.random() < self.config.gp.mutation_prob:
+                            subtree_mutation(offspring[i - 1], self.pset)
+
+                self._evaluate_population(offspring)
+
+                pop = tools.selNSGA2(pop + offspring, len(pop))
+
+            hof = tools.ParetoFront()
+            hof.update(pop)
+            return hof
+        finally:
+            if self._pool is not None:
+                self._pool.terminate()
+                self._pool.join()
+                self._pool = None

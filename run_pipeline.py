@@ -10,7 +10,6 @@ import pandas as pd
 
 from factor_mining.core.config import FactorMiningConfig
 from factor_mining.factors.registry import FactorRegistry
-from factor_mining.factors.transforms import canonical_pipeline
 from factor_mining.gp.typed_pset import build_pset
 from factor_mining.gp.primitives import register_primitives
 from factor_mining.gp.compiler import compile_tree
@@ -102,7 +101,6 @@ def main():
             continue
 
         weights = portfolio.construct(signal)
-        signals_series = pd.Series(signal.values, index=signal.index)
         weights_series = pd.Series(weights, index=signal.index)
         returns = (weights_series * fwd_returns).groupby(level="date_utc").sum().dropna()
 
@@ -121,13 +119,13 @@ def main():
 
         # IS/OOS gap using walk-forward
         from factor_mining.backtest.walk_forward import WalkForwardRunner
-        wf = WalkForwardRunner(is_days=180, oos_days=60, step_days=60)
+        wf = WalkForwardRunner(is_days=config.backtest.is_days, oos_days=config.backtest.oos_days, step_days=config.backtest.step_days)
         windows = wf.get_windows(
             str(signal.index.get_level_values("date_utc").min().date()),
             str(signal.index.get_level_values("date_utc").max().date()),
         )
         oos_returns_list = []
-        for w in windows[:3]:
+        for w in windows:
             mask_is = (signal.index.get_level_values("date_utc") >= w.is_start) & (signal.index.get_level_values("date_utc") < w.is_end)
             mask_oos = (signal.index.get_level_values("date_utc") >= w.oos_start) & (signal.index.get_level_values("date_utc") < w.oos_end)
             s_is = signal.loc[mask_is] if mask_is.any() else signal

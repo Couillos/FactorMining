@@ -4,7 +4,7 @@ __pycache__/
 dist/
 build/
 .cache/
-output/
+output*/
 venv/
 .venv/
 *.parquet
