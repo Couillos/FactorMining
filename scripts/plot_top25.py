@@ -12,6 +12,19 @@ warnings.filterwarnings("ignore")
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+plt.style.use("dark_background")
+plt.rcParams.update({
+    "figure.facecolor": "#1e1e1e",
+    "axes.facecolor": "#1e1e1e",
+    "axes.edgecolor": "#cccccc",
+    "axes.labelcolor": "#cccccc",
+    "axes.titlecolor": "#ffffff",
+    "text.color": "#cccccc",
+    "grid.color": "#444444",
+    "grid.alpha": 0.5,
+    "xtick.color": "#cccccc",
+    "ytick.color": "#cccccc",
+})
 import numpy as np
 import pandas as pd
 
@@ -82,7 +95,7 @@ for rank, idx in enumerate(top_indices):
     rets = (pd.Series(weights, index=signal.index) * fwd_returns.loc[signal.index]) \
            .groupby(level="date_utc").sum().dropna()
     cum = (1 + rets).cumprod()
-    ax1.plot(cum.index, cum.values, color=color, linewidth=0.8)
+    ax1.semilogy(cum.index, cum.values, color=color, linewidth=0.8)
     ax1.text(cum.index[-1], cum.values[-1], f" {label}",
              fontsize=7, color=color, va="center")
 

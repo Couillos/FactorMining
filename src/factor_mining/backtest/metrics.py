@@ -21,21 +21,14 @@ def turnover(weights_history: np.ndarray) -> float:
 
 
 def ic_decay(signal, fwd_returns, horizons: list[int]) -> dict:
-    from scipy.stats import spearmanr
     decay = {}
+    s_wide = signal.unstack("ticker")
     for h in horizons:
         fwd = fwd_returns.groupby(level="ticker", group_keys=False).transform(lambda x: x.shift(-h))
-        ics = []
-        for d in signal.index.get_level_values("date_utc").unique():
-            mask = signal.index.get_level_values("date_utc") == d
-            s = signal.loc[mask].dropna()
-            r = fwd.loc[mask].dropna()
-            common = s.index.intersection(r.index)
-            if len(common) >= 10:
-                rho, _ = spearmanr(s.loc[common], r.loc[common])
-                if not np.isnan(rho):
-                    ics.append(rho)
-        decay[h] = float(np.mean(ics)) if ics else 0.0
+        r_wide = fwd.unstack("ticker")
+        daily_ic = s_wide.rank(axis=1).corrwith(r_wide.rank(axis=1), axis=1)
+        valid = daily_ic.dropna()
+        decay[h] = float(valid.mean()) if len(valid) > 0 else 0.0
     return decay
 
 

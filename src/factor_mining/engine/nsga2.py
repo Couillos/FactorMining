@@ -111,7 +111,7 @@ class NSGA2Engine:
         data_pset = self._make_data_pset(factor_values)
 
         base_factors = [v.values for v in factor_values.values() if len(v) == len(panel)]
-        self.evaluator.diversity.base_factors = base_factors
+        self.evaluator.diversity.set_base_factors(base_factors)
 
         n_workers = self.config.engine.n_workers
         if n_workers == -1:

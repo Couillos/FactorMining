@@ -200,6 +200,19 @@ def main():
     n_top = min(25, len(diagnostics))
     top_indices = np.argsort([d["sharpe"] for d in diagnostics])[::-1][:n_top]
 
+    plt.style.use("dark_background")
+    plt.rcParams.update({
+        "figure.facecolor": "#1e1e1e",
+        "axes.facecolor": "#1e1e1e",
+        "axes.edgecolor": "#cccccc",
+        "axes.labelcolor": "#cccccc",
+        "axes.titlecolor": "#ffffff",
+        "text.color": "#cccccc",
+        "grid.color": "#444444",
+        "grid.alpha": 0.5,
+        "xtick.color": "#cccccc",
+        "ytick.color": "#cccccc",
+    })
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
     cmap = plt.cm.viridis
 
@@ -207,10 +220,10 @@ def main():
         color = cmap(rank / max(n_top - 1, 1))
         label = str(idx)
 
-        # Equity curve
+        # Equity curve (log scale)
         rets = all_returns[idx]
         cum = (1 + rets).cumprod()
-        ax1.plot(cum.index, cum.values, color=color, linewidth=0.8)
+        ax1.semilogy(cum.index, cum.values, color=color, linewidth=0.8)
         ax1.text(cum.index[-1], cum.values[-1], f" {label}",
                  fontsize=7, color=color, va="center")
 

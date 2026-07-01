@@ -18,7 +18,11 @@ class FUNDING_RATE_ZS(Factor):
 
     def compute(self, panel: pd.DataFrame) -> pd.Series:
         fr = panel["funding_rate"].groupby(level="ticker", group_keys=False).transform(lambda x: x.shift(1))
-        mean = fr.groupby(level="ticker", group_keys=False).transform(lambda x: x.rolling(30).mean())
-        std = fr.groupby(level="ticker", group_keys=False).transform(lambda x: x.rolling(30).std(ddof=0))
+        ticker = fr.index.get_level_values("ticker")
+        mean = fr.groupby(ticker, group_keys=False).transform(lambda x: x.rolling(30).mean())
+        std = fr.groupby(ticker, group_keys=False).transform(lambda x: x.rolling(30).std(ddof=0))
         zs = (fr - mean) / std.replace(0, float("nan"))
-        return zscore(zs)
+        date = zs.index.get_level_values("date_utc")
+        zs_mean = zs.groupby(date, group_keys=False).transform("mean")
+        zs_std = zs.groupby(date, group_keys=False).transform("std", ddof=0)
+        return (zs - zs_mean) / zs_std.replace(0, float("nan"))

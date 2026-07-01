@@ -8,23 +8,24 @@ def rank(panel: pd.Series) -> pd.Series:
 
 
 def zscore(panel: pd.Series) -> pd.Series:
-    def _zscore(g):
-        std = g.std(ddof=0)
-        if std == 0:
-            return g * 0.0
-        return (g - g.mean()) / std
-    return panel.groupby(level="date_utc", group_keys=False).transform(_zscore)
+    date = panel.index.get_level_values("date_utc")
+    means = panel.groupby(date, group_keys=False).transform("mean")
+    stds = panel.groupby(date, group_keys=False).transform("std", ddof=0)
+    return (panel - means) / stds.replace(0, float("nan"))
 
 
 def winsor(panel: pd.Series, lower: float = 1.0, upper: float = 99.0) -> pd.Series:
-    def _winsor(g):
-        vals = g.dropna()
-        if len(vals) == 0:
-            return g
-        lo = np.percentile(vals, lower)
-        hi = np.percentile(vals, upper)
-        return g.clip(lo, hi)
-    return panel.groupby(level="date_utc", group_keys=False).transform(_winsor)
+    p_low, p_high = lower / 100.0, upper / 100.0
+    date_idx = panel.index.get_level_values("date_utc")
+    lo_per_date = panel.groupby(date_idx).quantile(p_low)
+    hi_per_date = panel.groupby(date_idx).quantile(p_high)
+    lo = date_idx.map(lo_per_date)
+    hi = date_idx.map(hi_per_date)
+    if hasattr(lo, "index"):
+        lo.index = panel.index
+    if hasattr(hi, "index"):
+        hi.index = panel.index
+    return panel.clip(lo, hi)
 
 
 def neutralize(panel: pd.Series, category_dummies: pd.DataFrame | None = None) -> pd.Series:
