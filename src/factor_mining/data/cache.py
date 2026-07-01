@@ -22,10 +22,12 @@ class ParquetCache:
         root = self.cache_dir / source / symbol
         if not root.exists():
             return pd.DataFrame()
+        parquet_files = sorted(root.rglob("*.parquet"))
+        if not parquet_files:
+            return pd.DataFrame()
         try:
             import pyarrow.dataset as ds
-            import pyarrow.parquet as pq
-            dataset = ds.dataset(str(root), format="parquet")
+            dataset = ds.dataset([str(f) for f in parquet_files], format="parquet")
             table = dataset.to_table()
             df = table.to_pandas()
             if "date_utc" in df.columns:
@@ -35,7 +37,7 @@ class ParquetCache:
             return df
         except ImportError:
             dfs = []
-            for f in root.rglob("*.parquet"):
+            for f in parquet_files:
                 year = int(f.parent.parent.name)
                 month = int(f.parent.name)
                 day = int(f.stem)
