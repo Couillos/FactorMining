@@ -12,6 +12,9 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning, module="scipy.stats")
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="numpy")
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -100,6 +103,8 @@ def main():
 
     portfolio = LongShortPortfolio(decile=config.backtest.long_short_decile)
     diagnostics = []
+    all_returns = []
+    all_ic_decays = []
 
     print("\n=== Backtest et validation des formules Pareto")
     for i, ind in enumerate(pareto):
@@ -181,6 +186,8 @@ def main():
             "gap_alert": gap_alert,
         }
         diagnostics.append(row)
+        all_returns.append(returns)
+        all_ic_decays.append(decay)
         print(f"  [{i+1}/{len(pareto)}] IC={f1:.4f}  Sharpe={sr:.2f}  DD={mdd:.2%}  DSR={dsr:.3f}")
 
     export_diagnostics(diagnostics, str(output_dir))
@@ -189,16 +196,52 @@ def main():
     df.to_csv(output_dir / "full_report.csv", index=False)
     print(f"\nRapport complet: {output_dir / 'full_report.csv'}")
 
+    # Combined plot: top 25 equity curves + IC decay
+    n_top = min(25, len(diagnostics))
+    top_indices = np.argsort([d["sharpe"] for d in diagnostics])[::-1][:n_top]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
+    cmap = plt.cm.viridis
+
+    for rank, idx in enumerate(top_indices):
+        color = cmap(rank / max(n_top - 1, 1))
+        label = str(idx)
+
+        # Equity curve
+        rets = all_returns[idx]
+        cum = (1 + rets).cumprod()
+        ax1.plot(cum.index, cum.values, color=color, linewidth=0.8)
+        ax1.text(cum.index[-1], cum.values[-1], f" {label}",
+                 fontsize=7, color=color, va="center")
+
+        # IC decay
+        decay = all_ic_decays[idx]
+        horizons = sorted(decay.keys())
+        values = [decay[h] for h in horizons]
+        ax2.plot(horizons, values, marker="o", color=color, linewidth=0.8, markersize=3)
+        ax2.text(horizons[-1], values[-1], f" {label}",
+                 fontsize=7, color=color, va="center")
+
+    ax1.set_xlabel("Date")
+    ax1.set_ylabel("Cumulative Return")
+    ax1.set_title(f"Equity Curves — Top {n_top} by Sharpe")
+    ax1.axhline(y=1, color="gray", linestyle="--", linewidth=0.5)
+
+    ax2.set_xlabel("Horizon (days)")
+    ax2.set_ylabel("IC")
+    ax2.set_title(f"IC Decay — Top {n_top} by Sharpe")
+    ax2.axhline(y=0, color="gray", linestyle="--", linewidth=0.5)
+
+    fig.tight_layout()
+    fig.savefig(output_dir / "top25_equity_ic.png", dpi=150)
+    plt.close(fig)
+    print(f"  -> top25_equity_ic.png (top {n_top} candidates)")
+
     # Plot equity curve for best formula
     if diagnostics:
-        best_idx = np.argmax([d["sharpe"] for d in diagnostics])
+        best_idx = top_indices[0]
         best = diagnostics[best_idx]
         print(f"\nMeilleure formule (Sharpe={best['sharpe']}): {best['formula']}")
-
-        plot_ic_decay(
-            {1: best.get("ic_1d", 0), 7: best.get("ic_7d", 0), 30: best.get("ic_30d", 0)},
-            str(output_dir / "ic_decay.png"),
-        )
 
         # Equity curve on full data, with OOS shaded
         func = compile_tree(pareto[best_idx], data_pset_full)
@@ -212,7 +255,8 @@ def main():
     print(f"\n=== Terminé. Résultats dans {output_dir.resolve()}")
     print("  - pareto_front.csv / pareto_front.pkl")
     print("  - full_report.csv (backtest + validation)")
-    print("  - pareto_3d.png, ic_decay.png, equity_curve.png")
+    print("  - top25_equity_ic.png (equity + IC pour top 25)")
+    print("  - pareto_3d.png, equity_curve.png")
 
 
 if __name__ == "__main__":
