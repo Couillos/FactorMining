@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """Pipeline complète : évolution GP → backtest → validation → reporting."""
 
+import warnings
 import argparse
 import sys
 from pathlib import Path
+from scipy.stats import ConstantInputWarning
+
+warnings.filterwarnings("ignore", category=ConstantInputWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="scipy.stats")
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="numpy")
 
 import numpy as np
 import pandas as pd
@@ -62,7 +69,7 @@ def main():
     # ── IS / OOS split ──────────────────────────────────────────────────
     #   IS: config.data.start → 2025-01-01  (evolution)
     #   OOS: 2025-01-01 → config.data.end   (walk-forward validation)
-    is_cutoff = pd.Timestamp("2025-01-01", tz="UTC")
+    is_cutoff = pd.Timestamp("2025-01-01")
     panel_is = panel[panel.index.get_level_values("date_utc") < is_cutoff].copy()
     close_is = panel_is["close"]
     fwd_returns_is = close_is.groupby(level="ticker", group_keys=False).transform(
@@ -71,17 +78,6 @@ def main():
     print(f"Panel IS: {len(panel_is)} rows, dates={panel_is.index.get_level_values('date_utc').nunique()}, "
           f"tickers={panel_is.index.get_level_values('ticker').nunique()}")
     print(f"Panel OOS: {len(panel) - len(panel_is)} rows from 2025 onwards")
-
-    # ── Pré-computation des facteurs (sur IS pour l'évolution) ─────────
-    from copy import deepcopy
-    factor_values = {}
-    for name in factor_names:
-        factor = registry.get(name)
-        factor_values[name] = factor.compute(panel_is).astype(float)
-
-    data_pset = deepcopy(pset)
-    for name, series in factor_values.items():
-        data_pset.context[name] = series
 
     # ── Évolution NSGA-II (sur IS seulement) ────────────────────────────
     print("\n=== Évolution NSGA-II en cours (IS: 2020 → 2025)...")
@@ -93,6 +89,7 @@ def main():
 
     # ── Backtest et validation (sur panel complet IS+OOS) ──────────────
     # Recompute data_pset on FULL panel for walk-forward backtest
+    from copy import deepcopy
     factor_values_full = {}
     for name in factor_names:
         factor = registry.get(name)

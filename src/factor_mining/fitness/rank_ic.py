@@ -1,19 +1,11 @@
-from scipy.stats import spearmanr
 import numpy as np
+import pandas as pd
 
 
 class RankICEvaluator:
     def evaluate(self, signal, fwd_returns) -> float:
-        dates = signal.index.get_level_values("date_utc").unique()
-        ics = []
-        for d in dates:
-            mask = signal.index.get_level_values("date_utc") == d
-            s = signal.loc[mask].dropna()
-            r = fwd_returns.loc[mask].dropna()
-            common = s.index.intersection(r.index)
-            if len(common) < 10:
-                continue
-            rho, _ = spearmanr(s.loc[common], r.loc[common])
-            if not np.isnan(rho):
-                ics.append(rho)
-        return float(np.mean(ics)) if ics else 0.0
+        s_wide = signal.unstack("ticker")
+        r_wide = fwd_returns.unstack("ticker")
+        daily_ic = s_wide.rank(axis=1).corrwith(r_wide.rank(axis=1), axis=1)
+        valid = daily_ic.dropna()
+        return float(valid.mean()) if len(valid) > 0 else 0.0

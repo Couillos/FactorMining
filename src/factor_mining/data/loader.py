@@ -94,6 +94,8 @@ def _resample_funding(df: pd.DataFrame) -> pd.DataFrame:
     """Resample 8-hour funding rate to daily (last observation per day)."""
     if df.empty:
         return df
+    if not pd.api.types.is_datetime64_any_dtype(df.get("funding_time")):
+        return df
     df = df.copy()
     df["date_utc"] = df["funding_time"].dt.normalize()
     daily = df.groupby(["symbol", "date_utc"], as_index=False).last()
@@ -144,6 +146,12 @@ def load_panel(config: FactorMiningConfig) -> pd.DataFrame:
             symbols.append((sym, bsym))
     print(f"Universe: {len(symbols)} coins (from {top_n} CoinGecko top)", flush=True)
 
+    availability = cache.load_availability()
+    def _check_avail(coin: str, src: str) -> bool:
+        if coin not in availability:
+            return True  # not yet probed — assume available
+        return availability[coin].get(src) is not None
+
     all_close = {}
     all_volume = {}
     all_funding = []
@@ -151,11 +159,11 @@ def load_panel(config: FactorMiningConfig) -> pd.DataFrame:
     all_oi = []
     all_ls = []
 
-    ohlcv_provider = BinanceOHLCVProvider()
-    funding_provider = BinanceFundingProvider()
-    taker_provider = BinanceTakerProvider()
-    oi_provider = BybitOpenInterestProvider()
-    ls_provider = BybitLSRatioProvider()
+    ohlcv_provider = BinanceOHLCVProvider(cache)
+    funding_provider = BinanceFundingProvider(cache)
+    taker_provider = BinanceTakerProvider(cache)
+    oi_provider = BybitOpenInterestProvider(cache)
+    ls_provider = BybitLSRatioProvider(cache)
 
     start = config.data.start
     end = config.data.end
@@ -164,12 +172,14 @@ def load_panel(config: FactorMiningConfig) -> pd.DataFrame:
 
     for i, (coin_sym, binance_sym) in enumerate(symbols):
         bybit_sym = _bybit_symbol(coin_sym)
-        if (i + 1) % 10 == 0 or i == 0:
+        if (i + 1) % 5 == 0 or i == 0:
             print(f"  [{i+1}/{len(symbols)}] {coin_sym.upper()}...", flush=True)
-        time.sleep(0.2)
 
         # OHLCV
-        ohlcv = _try_download(ohlcv_provider, binance_sym, start, end)
+        if _check_avail(coin_sym, "binance_ohlcv"):
+            ohlcv = _try_download(ohlcv_provider, binance_sym, start, end)
+        else:
+            ohlcv = None
         if ohlcv is not None and not ohlcv.empty:
             ohlcv = _normalize_symbol_col(ohlcv)
             for _, row in ohlcv.iterrows():
@@ -183,20 +193,30 @@ def load_panel(config: FactorMiningConfig) -> pd.DataFrame:
                     all_volume[(dt, ticker)] = vol
 
         # Funding
-        funding = _try_download(funding_provider, binance_sym, funding_start_ms, funding_end_ms)
+        if _check_avail(coin_sym, "binance_funding"):
+            funding = _try_download(funding_provider, binance_sym, funding_start_ms, funding_end_ms)
+        else:
+            funding = None
         if funding is not None and not funding.empty:
             funding = _normalize_symbol_col(funding)
             funding_daily = _resample_funding(funding)
-            all_funding.append(funding_daily)
+            if not funding_daily.empty:
+                all_funding.append(funding_daily)
 
         # Taker
-        taker = _try_download(taker_provider, binance_sym, start, end)
+        if _check_avail(coin_sym, "binance_taker"):
+            taker = _try_download(taker_provider, binance_sym, start, end)
+        else:
+            taker = None
         if taker is not None and not taker.empty:
             taker = _normalize_symbol_col(taker)
             all_taker.append(taker)
 
         # OI
-        oi = _try_download(oi_provider, bybit_sym, start, end)
+        if _check_avail(coin_sym, "bybit_oi"):
+            oi = _try_download(oi_provider, bybit_sym, start, end)
+        else:
+            oi = None
         if oi is not None and not oi.empty:
             oi = oi.rename(columns={"open_interest_usd": "oi_usd", "timestamp": "date_utc"})
             oi["symbol"] = coin_sym.upper() + "/USDT"
@@ -204,7 +224,10 @@ def load_panel(config: FactorMiningConfig) -> pd.DataFrame:
             all_oi.append(oi[["date_utc", "symbol", "oi_usd"]])
 
         # LS Ratio
-        ls_df = _try_download(ls_provider, bybit_sym, start, end)
+        if _check_avail(coin_sym, "bybit_ls"):
+            ls_df = _try_download(ls_provider, bybit_sym, start, end)
+        else:
+            ls_df = None
         if ls_df is not None and not ls_df.empty:
             ls_df = ls_df.rename(columns={"timestamp": "date_utc"})
             ls_df["symbol"] = coin_sym.upper() + "/USDT"
@@ -225,31 +248,45 @@ def load_panel(config: FactorMiningConfig) -> pd.DataFrame:
 
     panel = close_df.merge(vol_df, on=["date_utc", "ticker"], how="outer")
 
+    # Normalize date column across all sources
+    def _norm_date(df: pd.DataFrame) -> pd.DataFrame:
+        if "date_utc" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["date_utc"]):
+            df = df.copy()
+            df["date_utc"] = pd.to_datetime(df["date_utc"], utc=True)
+        return df
+    panel = _norm_date(panel)
+
+    def _merge_sorted(panel: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return panel
+        df = _norm_date(df)
+        return panel.merge(df, on=["date_utc", "ticker"], how="outer")
+
     # Merge funding
     if all_funding:
         funding_all = pd.concat(all_funding, ignore_index=True)
         funding_all = funding_all.groupby(["date_utc", "symbol"], as_index=False).last()
         funding_all = funding_all.rename(columns={"symbol": "ticker"})
-        panel = panel.merge(funding_all, on=["date_utc", "ticker"], how="outer")
+        panel = _merge_sorted(panel, funding_all)
 
     # Merge taker
     if all_taker:
         taker_all = pd.concat(all_taker, ignore_index=True)
         taker_all = taker_all[["date_utc", "symbol", "taker_buy_ratio", "taker_net_volume"]]
         taker_all = taker_all.rename(columns={"symbol": "ticker"})
-        panel = panel.merge(taker_all, on=["date_utc", "ticker"], how="outer")
+        panel = _merge_sorted(panel, taker_all)
 
     # Merge OI
     if all_oi:
         oi_all = pd.concat(all_oi, ignore_index=True)
         oi_all = oi_all.rename(columns={"symbol": "ticker"})
-        panel = panel.merge(oi_all, on=["date_utc", "ticker"], how="outer")
+        panel = _merge_sorted(panel, oi_all)
 
     # Merge LS
     if all_ls:
         ls_all = pd.concat(all_ls, ignore_index=True)
         ls_all = ls_all.rename(columns={"symbol": "ticker"})
-        panel = panel.merge(ls_all, on=["date_utc", "ticker"], how="outer")
+        panel = _merge_sorted(panel, ls_all)
 
     # Attach market_cap and category from CoinGecko (static snapshot)
     market_cap_map = {}
@@ -268,13 +305,13 @@ def load_panel(config: FactorMiningConfig) -> pd.DataFrame:
     panel["market_cap"] = panel["ticker"].map(market_cap_map)
     panel["category"] = panel["ticker"].map(category_map)
 
-    # Clean
-    panel = clean_panel(panel, max_gap_days=config.data.nan_max_gap_days,
-                        funding_lag_ms=config.data.funding_lookahead_lag_ms)
-
     # Set index
     if "date_utc" in panel.columns:
         panel = panel.set_index(["date_utc", "ticker"]).sort_index()
+
+    # Clean
+    panel = clean_panel(panel, max_gap_days=config.data.nan_max_gap_days,
+                        funding_lag_ms=config.data.funding_lookahead_lag_ms)
 
     print(f"Panel: {len(panel)} rows, dates={panel.index.get_level_values('date_utc').nunique()}, "
           f"tickers={panel.index.get_level_values('ticker').nunique()}", flush=True)

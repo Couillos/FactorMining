@@ -1,6 +1,6 @@
 data:
   universe_source: coingecko
-  universe_size: 200
+  universe_size: 50
   start: "2020-01-01"
   end: "2026-06-30"
   cache_dir: ./cache

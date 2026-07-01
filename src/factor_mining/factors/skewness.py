@@ -1,5 +1,4 @@
 import pandas as pd
-from scipy.stats import skew
 from .interfaces import Factor
 
 
@@ -10,6 +9,4 @@ class SKEW_30D(Factor):
     def compute(self, panel: pd.DataFrame) -> pd.Series:
         close = panel["close"]
         ret = close.groupby(level="ticker", group_keys=False).transform(lambda x: x.pct_change())
-        return ret.groupby(level="ticker", group_keys=False).transform(
-            lambda x: x.rolling(30).apply(lambda y: skew(y.dropna()) if len(y.dropna()) >= 3 else float("nan"))
-        )
+        return ret.groupby(level="ticker", group_keys=False).transform(lambda x: x.rolling(30).skew())

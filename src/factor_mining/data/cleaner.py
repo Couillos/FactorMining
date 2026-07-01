@@ -46,7 +46,13 @@ def enforce_funding_lag(df: pd.DataFrame, lag_ms: int = 1) -> pd.DataFrame:
     if "funding_rate" not in df.columns:
         return df
     df = df.copy()
-    df["funding_rate"] = df.groupby(level="ticker" if "ticker" in df.index.names else None)["funding_rate"].shift(1)
+    if "ticker" in df.index.names:
+        grouper = df.groupby(level="ticker", group_keys=False)
+    elif "ticker" in df.columns:
+        grouper = df.groupby("ticker", group_keys=False)
+    else:
+        return df
+    df["funding_rate"] = grouper["funding_rate"].shift(1)
     return df
 
 

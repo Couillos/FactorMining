@@ -28,6 +28,10 @@ class CoinGeckoClient:
         return resp.json()
 
     def download_universe(self) -> pd.DataFrame:
+        cached = self.cache.read("coingecko_universe")
+        if not cached.empty:
+            return cached
+
         all_coins = []
         for page in [1, 2]:
             all_coins.extend(self._fetch_page(page))

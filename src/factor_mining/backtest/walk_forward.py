@@ -17,8 +17,8 @@ class WalkForwardRunner:
         self.step_days = step_days
 
     def get_windows(self, start: str, end: str) -> list[WalkForwardWindow]:
-        start = pd.Timestamp(start, tz="UTC")
-        end = pd.Timestamp(end, tz="UTC")
+        start = pd.Timestamp(start)
+        end = pd.Timestamp(end)
         windows = []
         cur = start
         while cur + pd.Timedelta(days=self.is_days + self.oos_days) <= end:

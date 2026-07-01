@@ -1,3 +1,4 @@
+import warnings
 from deap import base, creator, tools, gp
 import numpy as np
 import pandas as pd
@@ -5,6 +6,11 @@ import random
 import os
 from copy import deepcopy
 from multiprocessing import Pool
+from scipy.stats import ConstantInputWarning
+
+warnings.filterwarnings("ignore", category=ConstantInputWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="scipy.stats")
 
 from factor_mining.gp.compiler import compile_tree
 from factor_mining.gp.subtree_cache import SubtreeCache
@@ -16,6 +22,11 @@ from factor_mining.factors.registry import FactorRegistry
 _WORKER_DATA: dict = {}
 
 def _init_worker(fwd_returns, data_pset, evaluator):
+    import warnings
+    from scipy.stats import ConstantInputWarning
+    warnings.filterwarnings("ignore", category=ConstantInputWarning)
+    warnings.filterwarnings("ignore", category=FutureWarning)
+    warnings.filterwarnings("ignore", category=UserWarning, module="scipy.stats")
     _WORKER_DATA['fwd_returns'] = fwd_returns
     _WORKER_DATA['data_pset'] = data_pset
     _WORKER_DATA['evaluator'] = evaluator
@@ -98,6 +109,9 @@ class NSGA2Engine:
 
         factor_values = self._precompute_factors(panel)
         data_pset = self._make_data_pset(factor_values)
+
+        base_factors = [v.values for v in factor_values.values() if len(v) == len(panel)]
+        self.evaluator.diversity.base_factors = base_factors
 
         n_workers = self.config.engine.n_workers
         if n_workers == -1:
