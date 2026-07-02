@@ -29,7 +29,7 @@ from factor_mining.reporting.pareto_export import export_pareto
 from factor_mining.reporting.csv_export import export_diagnostics
 from factor_mining.reporting.plots import plot_pareto_3d, plot_ic_decay, plot_equity_curve
 from factor_mining.backtest.portfolio import LongShortPortfolio
-from factor_mining.backtest.metrics import sharpe, max_drawdown, turnover, ic_decay
+from factor_mining.backtest.metrics import sharpe, max_drawdown, ic_decay
 from factor_mining.validation.bootstrap_ic import bootstrap_ic_confidence
 from factor_mining.validation.deflated_sharpe import deflated_sharpe
 from factor_mining.validation.is_oos_gap_alert import is_oos_gap_alert
@@ -125,7 +125,8 @@ def main():
 
         sr = sharpe(returns)
         mdd = max_drawdown(returns)
-        to = turnover(weights.reshape(1, -1))
+        weights_df = weights_series.unstack("ticker")
+        to = float(weights_df.diff().abs().sum(axis=1).dropna().mean())
         decay = ic_decay(signal, fwd_returns_full, [1, 3, 7, 14, 30])
         ic_bootstrap = bootstrap_ic_confidence(signal, fwd_returns_full, n_bootstrap=200)
         sr_var = returns.var(ddof=0) / returns.mean() ** 2 if returns.mean() != 0 else 1.0

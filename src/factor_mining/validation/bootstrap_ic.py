@@ -15,8 +15,10 @@ def bootstrap_ic_confidence(signal, fwd_returns, n_bootstrap: int = 1000, ci: fl
             if not np.isnan(rho):
                 daily_ics.append(rho)
     daily_ics = np.array(daily_ics)
-    if len(daily_ics) < 2:
-        return (0.0, 0.0)
+    if len(daily_ics) < 10:
+        return (np.nan, np.nan)
+    if daily_ics.std(ddof=0) == 0:
+        return (float(daily_ics.mean()), float(daily_ics.mean()))
     boot_means = np.array([
         np.mean(np.random.choice(daily_ics, size=len(daily_ics), replace=True))
         for _ in range(n_bootstrap)

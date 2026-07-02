@@ -23,10 +23,14 @@ def turnover(weights_history: np.ndarray) -> float:
 def ic_decay(signal, fwd_returns, horizons: list[int]) -> dict:
     decay = {}
     s_wide = signal.unstack("ticker")
+    valid_count = s_wide.notna().sum(axis=1)
+    min_tickers = valid_count >= 10
+    s_filt = s_wide[min_tickers]
     for h in horizons:
         fwd = fwd_returns.groupby(level="ticker", group_keys=False).transform(lambda x: x.shift(-h))
         r_wide = fwd.unstack("ticker")
-        daily_ic = s_wide.rank(axis=1).corrwith(r_wide.rank(axis=1), axis=1)
+        r_filt = r_wide[min_tickers]
+        daily_ic = s_filt.rank(axis=1).corrwith(r_filt.rank(axis=1), axis=1)
         valid = daily_ic.dropna()
         decay[h] = float(valid.mean()) if len(valid) > 0 else 0.0
     return decay
