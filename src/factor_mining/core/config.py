@@ -53,6 +53,10 @@ class EngineConfig(BaseModel):
     n_workers: int = -1
 
 
+class OptimizationConfig(BaseModel):
+    is_end: str = "2025-01-01"
+
+
 class FitnessConfig(BaseModel):
     fwd_return_horizon_days: int = 7
 
@@ -82,6 +86,7 @@ class FactorMiningConfig(BaseModel):
     factors: FactorsConfig = Field(default_factory=FactorsConfig)
     gp: GPConfig = Field(default_factory=GPConfig)
     engine: EngineConfig = Field(default_factory=EngineConfig)
+    optimization: OptimizationConfig = Field(default_factory=OptimizationConfig)
     fitness: FitnessConfig = Field(default_factory=FitnessConfig)
     backtest: BacktestConfig = Field(default_factory=BacktestConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)

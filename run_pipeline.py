@@ -70,9 +70,9 @@ def main():
     )
 
     # ── IS / OOS split ──────────────────────────────────────────────────
-    #   IS: config.data.start → 2025-01-01  (evolution)
-    #   OOS: 2025-01-01 → config.data.end   (walk-forward validation)
-    is_cutoff = pd.Timestamp("2025-01-01")
+    #   IS: config.data.start → config.optimization.is_end  (evolution)
+    #   OOS: config.optimization.is_end → config.data.end   (walk-forward validation)
+    is_cutoff = pd.Timestamp(config.optimization.is_end)
     panel_is = panel[panel.index.get_level_values("date_utc") < is_cutoff].copy()
     close_is = panel_is["close"]
     fwd_returns_is = close_is.groupby(level="ticker", group_keys=False).transform(
@@ -80,10 +80,10 @@ def main():
     )
     print(f"Panel IS: {len(panel_is)} rows, dates={panel_is.index.get_level_values('date_utc').nunique()}, "
           f"tickers={panel_is.index.get_level_values('ticker').nunique()}")
-    print(f"Panel OOS: {len(panel) - len(panel_is)} rows from 2025 onwards")
+    print(f"Panel OOS: {len(panel) - len(panel_is)} rows from {config.optimization.is_end} onwards")
 
     # ── Évolution NSGA-II (sur IS seulement) ────────────────────────────
-    print("\n=== Évolution NSGA-II en cours (IS: 2020 → 2025)...")
+    print(f"\n=== Évolution NSGA-II en cours (IS: {config.data.start} → {config.optimization.is_end})...")
     pareto = runner.run(args.seed, panel_is, fwd_returns_is)
     print(f"Front de Pareto: {len(pareto)} individus")
 
@@ -198,7 +198,7 @@ def main():
 
     # Combined plot: top 25 equity curves + IC decay
     n_top = min(25, len(diagnostics))
-    top_indices = np.argsort([d["sharpe"] for d in diagnostics])[::-1][:n_top]
+    top_indices = np.argsort([d["rank_ic"] for d in diagnostics])[::-1][:n_top]
 
     plt.style.use("dark_background")
     plt.rcParams.update({
@@ -237,12 +237,12 @@ def main():
 
     ax1.set_xlabel("Date")
     ax1.set_ylabel("Cumulative Return")
-    ax1.set_title(f"Equity Curves — Top {n_top} by Sharpe")
+    ax1.set_title(f"Equity Curves — Top {n_top} by Rank IC")
     ax1.axhline(y=1, color="gray", linestyle="--", linewidth=0.5)
 
     ax2.set_xlabel("Horizon (days)")
     ax2.set_ylabel("IC")
-    ax2.set_title(f"IC Decay — Top {n_top} by Sharpe")
+    ax2.set_title(f"IC Decay — Top {n_top} by Rank IC")
     ax2.axhline(y=0, color="gray", linestyle="--", linewidth=0.5)
 
     fig.tight_layout()
@@ -254,7 +254,7 @@ def main():
     if diagnostics:
         best_idx = top_indices[0]
         best = diagnostics[best_idx]
-        print(f"\nMeilleure formule (Sharpe={best['sharpe']}): {best['formula']}")
+        print(f"\nMeilleure formule (RankIC={best['rank_ic']}): {best['formula']}")
 
         # Equity curve on full data, with OOS shaded
         func = compile_tree(pareto[best_idx], data_pset_full)

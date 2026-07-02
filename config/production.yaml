@@ -13,6 +13,9 @@ gp:
 engine:
   n_workers: 8
 
+optimization:
+  is_end: "2024-10-02"
+
 backtest:
   is_days: 365
   oos_days: 90

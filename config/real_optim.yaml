@@ -52,6 +52,9 @@ engine:
   lambda_: 200
   n_workers: -1
 
+optimization:
+  is_end: "2025-01-01"
+
 fitness:
   fwd_return_horizon_days: 7
 
