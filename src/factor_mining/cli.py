@@ -197,12 +197,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Directory where reports / artefacts are written (default: ./output)",
     )
     parser.add_argument(
-        "--n-gen", type=int, default=10,
-        help="Number of NSGA-II generations (default: 10)",
+        "--n-gen", type=int, default=None,
+        help="Number of NSGA-II generations (overrides config YAML value)",
     )
     parser.add_argument(
-        "--pop-size", type=int, default=20,
-        help="Population size for NSGA-II (default: 20)",
+        "--pop-size", type=int, default=None,
+        help="Population size for NSGA-II (overrides config YAML value)",
     )
     parser.add_argument(
         "--synthetic", action="store_true",
@@ -234,8 +234,10 @@ def main(argv: list[str] | None = None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     config = FactorMiningConfig.from_yaml(args.config)
-    config.gp.n_gen = args.n_gen
-    config.gp.pop_size = args.pop_size
+    if args.n_gen is not None:
+        config.gp.n_gen = args.n_gen
+    if args.pop_size is not None:
+        config.gp.pop_size = args.pop_size
     print(
         f"=== Configuration: pop_size={config.gp.pop_size}, "
         f"n_gen={config.gp.n_gen}, seed={args.seed}"
