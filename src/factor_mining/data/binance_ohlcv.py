@@ -71,6 +71,8 @@ class BinanceOHLCVProvider:
                 for dt, grp in fresh.groupby(fresh["date_utc"].dt.date):
                     self._cache.store(self.SOURCE, api_sym, dt, grp)
             result = pd.concat([cached, fresh], ignore_index=True) if not cached.empty else fresh
+            if result.empty:
+                return result
             return result.drop_duplicates(subset=["date_utc", "symbol"]).sort_values("date_utc").reset_index(drop=True)
 
         return self._fetch_range(symbol, start, end)

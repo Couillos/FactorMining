@@ -184,7 +184,7 @@ def plot_ic_time_series(
     ax.axhline(0, color="gray", linewidth=0.5, linestyle="--")
 
     # OOS shading — mark the post-cutoff region as out-of-sample
-    if is_cutoff is not None:
+    if is_cutoff is not None and not pd.isna(ic_series.index.max()):
         ax.axvspan(is_cutoff, ic_series.index.max(), alpha=0.1, color="white")
         ax.axvline(is_cutoff, color="gray", linestyle=":", alpha=0.5)
 
@@ -252,7 +252,7 @@ def plot_equity_curve(returns, output_path: str = "equity_curve.png",
     ax.axhline(0, color="gray", linewidth=0.5)
 
     # OOS shading
-    if is_cutoff is not None:
+    if is_cutoff is not None and not pd.isna(cum.index.max()):
         ax.axvspan(is_cutoff, cum.index.max(), alpha=0.1, color="white", label="OOS")
         ax.axvline(is_cutoff, color="gray", linestyle="--", alpha=0.5)
 
@@ -312,7 +312,7 @@ def plot_decile_spread(decile_returns_df, output_path: str = "decile_spread.png"
     ax.set_ylabel("Cumulative return per decile")
     ax.set_title(title)
     ax.axhline(1.0, color="gray", linewidth=0.5, linestyle="--")
-    if is_cutoff is not None and len(cum.index):
+    if is_cutoff is not None and len(cum.index) and not pd.isna(cum.index.max()):
         ax.axvspan(is_cutoff, cum.index.max(), alpha=0.1, color="white")
         ax.axvline(is_cutoff, color="gray", linestyle=":", alpha=0.5)
     ax.legend(loc="upper left", fontsize=7, ncol=2)
@@ -416,7 +416,7 @@ def plot_top25_panel(
         rolling = ensemble.rolling(30, min_periods=10).mean()
         ax_a.plot(rolling.index, rolling.values, color="white", linewidth=1.2,
                   linestyle="--", label="30d MA of ensemble")
-        if is_cutoff is not None and last_date is not None:
+        if is_cutoff is not None and last_date is not None and not pd.isna(last_date):
             ax_a.axvspan(is_cutoff, last_date, alpha=0.1, color="white")
             ax_a.axvline(is_cutoff, color="gray", linestyle=":", alpha=0.5)
     ax_a.axhline(0, color="gray", linewidth=0.5, linestyle="--")
@@ -500,7 +500,7 @@ def plot_top25_panel(
         ax_d.plot(cum.index, cum.values, color=color, linewidth=0.8, alpha=0.85)
         ax_d.text(cum.index[-1], cum.values[-1], f" {rank}",
                   fontsize=6, color=color, va="center")
-    if is_cutoff is not None and last_idx is not None:
+    if is_cutoff is not None and last_idx is not None and not pd.isna(last_idx):
         ax_d.axvspan(is_cutoff, last_idx, alpha=0.1, color="white")
         ax_d.axvline(is_cutoff, color="gray", linestyle=":", alpha=0.5)
     ax_d.axhline(1.0, color="gray", linewidth=0.5, linestyle="--")

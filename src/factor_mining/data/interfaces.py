@@ -177,6 +177,8 @@ class _BaseRESTProvider:
                 result = pd.concat([cached, fresh], ignore_index=True)
             else:
                 result = fresh
+            if result.empty:
+                return result
             return (
                 result
                 .drop_duplicates(subset=[self.TIMESTAMP_COL, "symbol"])
