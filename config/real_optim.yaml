@@ -3,7 +3,7 @@ data:
   universe_size: 50
   universe_ttl_hours: 24.0  # CoinGecko universe snapshot TTL
   start: "2020-01-01"
-  end: "2026-06-30"
+  end: "2025-01-31"
   cache_dir: ./cache
   ohlcv_source: binance_futures
   funding_source: binance_futures
