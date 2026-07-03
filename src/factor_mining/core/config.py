@@ -7,6 +7,9 @@ from pydantic import BaseModel, Field, model_validator
 class DataConfig(BaseModel):
     universe_source: str = "coingecko"
     universe_size: int = 200
+    # TTL (hours) for the cached CoinGecko universe snapshot. A snapshot older
+    # than this is refreshed on the next ``download_universe`` call.
+    universe_ttl_hours: float = 24.0
     start: str = "2023-01-01"
     end: str = "2024-12-31"
     cache_dir: str = "./cache"
@@ -16,7 +19,7 @@ class DataConfig(BaseModel):
     oi_source: str = "bybit_v5"
     ls_source: str = "bybit_v5"
     rate_limit_calls_per_min: int = 30
-    funding_lookahead_lag_ms: int = 1
+    funding_lookahead_shift_periods: int = 1
     nan_max_gap_days: int = 3
 
 

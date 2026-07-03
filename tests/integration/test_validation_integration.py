@@ -101,15 +101,14 @@ class TestPermutation:
     def test_permutation_on_real_signal(self, real_factor_values, fwd_returns):
         from factor_mining.validation.permutation_test import permutation_test
         signal = real_factor_values["MOM_30D"]
-        ic, pval = permutation_test(signal, fwd_returns, n_permutations=50, seed=42)
-        assert isinstance(ic, float)
+        pval = permutation_test(signal, fwd_returns, n_permutations=50, seed=42)
         assert isinstance(pval, float)
         assert 0 <= pval <= 1
 
     def test_permutation_lower_pval_for_stronger_signal(self, real_factor_values, fwd_returns):
         from factor_mining.validation.permutation_test import permutation_test
-        ic1, pval1 = permutation_test(real_factor_values["MOM_7D"], fwd_returns, n_permutations=50, seed=42)
-        ic2, pval2 = permutation_test(real_factor_values["SKEW_30D"], fwd_returns, n_permutations=50, seed=42)
+        pval1 = permutation_test(real_factor_values["MOM_7D"], fwd_returns, n_permutations=50, seed=42)
+        pval2 = permutation_test(real_factor_values["SKEW_30D"], fwd_returns, n_permutations=50, seed=42)
         assert isinstance(pval1, float)
         assert isinstance(pval2, float)
 

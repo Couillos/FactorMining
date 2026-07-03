@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: pip
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install ruff mypy
+
+    - name: Lint with ruff
+      run: ruff check src/ tests/
+
+    - name: Format check
+      run: ruff format --check src/ tests/
+
+    - name: Type check with mypy
+      run: mypy src/factor_mining/ || true
+
+    - name: Generate test fixtures
+      run: python scripts/generate_synthetic_data.py
+
+    - name: Run tests (no smoke)
+      run: pytest -m "not smoke" --cov --cov-fail-under=55

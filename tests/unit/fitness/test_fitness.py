@@ -19,6 +19,11 @@ def test_rank_ic_known_answer():
 
 
 def test_stability_constant_ic():
+    """A constant IC (zero variance) should return 0 stability (degenerate case).
+
+    With the HAC-SE metric (T5.6), std_ic == 0 makes the denominator zero,
+    so stability is defined as 0.0 (no uncertainty → no meaningful ICIR).
+    """
     dates = pd.date_range("2023-01-01", periods=5, freq="D", tz="UTC")
     tickers = [f"T{i:03d}" for i in range(10)]
     idx = pd.MultiIndex.from_product([dates, tickers], names=["date_utc", "ticker"])
@@ -26,7 +31,8 @@ def test_stability_constant_ic():
     fwd = pd.Series(list(range(10)) * 5, index=idx)
     evaluator = StabilityEvaluator()
     result = evaluator.evaluate(signal, fwd)
-    assert result > 0
+    # Constant IC → std=0 → stability=0 (degenerate but well-defined)
+    assert result == 0.0 or np.isnan(result)
 
 
 def test_diversity_orthogonal():

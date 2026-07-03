@@ -9,9 +9,23 @@ from .cache import ParquetCache
 class BinanceOHLCVProvider:
     SOURCE = "binance_ohlcv"
 
-    def __init__(self, cache: ParquetCache | None = None):
+    def __init__(
+        self,
+        cache: ParquetCache | None = None,
+        client=None,
+    ):
+        # NOTE: this provider uses ccxt (not httpx) for OHLCV fetching, so the
+        # ``client`` kwarg is accepted for API parity with the other providers
+        # but currently unused. It is reserved for a future httpx-backed
+        # implementation of the OHLCV path; passing one is a no-op.
+        self._client = client
         self.exchange = ccxt.binanceusdm({"enableRateLimit": True})
         self._cache = cache
+
+    def close(self) -> None:
+        """Close any underlying resources owned by this provider."""
+        # ccxt manages its own sessions; nothing to close here.
+        return None
 
     def _api_symbol(self, symbol: str) -> str:
         return symbol.replace("/", "").replace(":USDT", "")

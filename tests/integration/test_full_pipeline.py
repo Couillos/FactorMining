@@ -100,7 +100,7 @@ class TestFullPipeline:
         lo, hi = bootstrap_ic_confidence(signal, fwd_returns, n_bootstrap=50)
         assert lo <= hi
 
-        ic, pval = permutation_test(signal, fwd_returns, n_permutations=50, seed=42)
+        pval = permutation_test(signal, fwd_returns, n_permutations=50, seed=42)
         assert 0 <= pval <= 1
 
         alert, gap = is_oos_gap_alert(is_sharpe=2.0, oos_sharpe=0.5, threshold=0.50)

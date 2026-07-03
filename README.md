@@ -125,6 +125,7 @@ Configuration is done via a YAML file. A default file is located at `config/defa
 data:
   universe_source: coingecko
   universe_size: 200
+  universe_ttl_hours: 24.0
   start: "2023-01-01"
   end: "2024-12-31"
   cache_dir: ./cache
@@ -134,7 +135,30 @@ data:
   oi_source: bybit_v5
   ls_source: bybit_v5
   rate_limit_calls_per_min: 30
+  funding_lookahead_shift_periods: 1
   nan_max_gap_days: 3
+
+factors:
+  pool:
+    - MOM_1D
+    - MOM_7D
+    - MOM_30D
+    - MOM_90D
+    - FUNDING_RATE
+    - FUNDING_RATE_ZS
+    - TAKER_BUY_RATIO
+    - TAKER_NET_VOLUME
+    - OI_CHANGE
+    - OI_USD
+    - LS_RATIO
+    - LS_RATIO_ZS
+    - VOL_30D
+    - LOG_MCAP
+    - AMIHUD
+    - SKEW_30D
+  winsorize_percentiles: [1, 99]
+  neutralize_category: true
+  category_source: coingecko
 
 gp:
   pop_size: 100
@@ -153,6 +177,9 @@ engine:
   lambda_: 100
   n_workers: -1         # -1 = all cores
 
+optimization:
+  is_end: "2024-10-02"    # In-sample cutoff used for GP optimization
+
 fitness:
   fwd_return_horizon_days: 7
 
@@ -166,6 +193,7 @@ backtest:
 validation:
   deflated_sharpe_n_trials: 5000
   jaccard_k_runs: 10
+  jaccard_threshold: 0.7
   permutation_n: 1000
   is_oos_gap_threshold: 0.50
 
@@ -181,6 +209,7 @@ reporting:
 | `factors` | Factor pool, winsorization, sector neutralization |
 | `gp` | Genetic programming parameters (pop size, depth, mutations) |
 | `engine` | NSGA-II parameters (elitism, tournament size, parallelism) |
+| `optimization` | Optimization cutoffs (in-sample end date) |
 | `fitness` | Forward return horizon |
 | `backtest` | Walk-forward windows, decile, transaction costs |
 | `validation` | Bootstrap/permutation counts, thresholds |
@@ -192,11 +221,23 @@ reporting:
 
 ### Launching evolution
 
+Two entry points are provided:
+
+- **`python -m factor_mining.cli`** — minimal GP-only entry point. Loads the
+  synthetic test panel from `tests/fixtures/synthetic_panel.pkl` when present;
+  intended for quick local runs and unit/integration testing.
+- **`python run_pipeline.py`** — **production entry point**. Runs the full
+  pipeline end-to-end: GP evolution → walk-forward backtest → statistical
+  validation (DSR, bootstrap IC, permutation, IS/OOS gap) → reporting
+  (CSV/pickle/plots). This is the script to use for real factor-mining runs.
+
+Quick local run via the CLI:
+
 ```bash
 python -m factor_mining.cli --config config/default.yaml --seed 42 --output-dir ./output
 ```
 
-Arguments:
+Arguments (identical for both entry points):
 
 | Argument | Default | Description |
 |---|---|---|
@@ -204,12 +245,11 @@ Arguments:
 | `--seed` | `42` | Random seed (reproducibility) |
 | `--output-dir` | `./output` | Results directory |
 
-The system loads a synthetic test panel from `tests/fixtures/synthetic_panel.pkl` if it exists. In production, replace with real data via the providers.
-
 ### Production example
 
 ```bash
-python -m factor_mining.cli --config config/production.yaml --seed 12345
+# Full pipeline: GP evolution + walk-forward backtest + validation + reporting
+python run_pipeline.py --config config/production.yaml --seed 12345
 ```
 
 ---
@@ -462,10 +502,13 @@ make lint
 make audit
 ```
 
-The project contains:
-- **47 unit tests** (core business logic)
-- **67 integration tests without API** (full pipeline on synthetic data)
-- **14 smoke tests** (real connections to Binance, Bybit, CoinGecko)
+The project contains **205 tests** in total, broken down as follows:
+- **124 unit tests** (core business logic — factors, primitives, fitness, validation, GP, backtest)
+- **81 integration tests** (full pipeline on synthetic data, including 14 smoke
+  tests that hit the real Binance, Bybit, and CoinGecko APIs)
+
+Of the 81 integration tests, **14 are smoke tests** that exercise live API
+endpoints and are skipped by default (`-k "not smoke"`).
 
 ---
 
@@ -476,9 +519,10 @@ factor_mining/
 ├── config/
 │   ├── default.yaml          # Default configuration
 │   └── production.yaml       # Production configuration
+├── run_pipeline.py           # Production entry point (full pipeline)
 ├── src/
 │   └── factor_mining/
-│       ├── cli.py             # CLI entry point
+│       ├── cli.py             # Minimal CLI entry point (GP-only, synthetic fixture)
 │       ├── core/
 │       │   ├── config.py      # Pydantic configuration
 │       │   ├── types.py       # Type aliases (Panel, Window)
@@ -547,8 +591,8 @@ factor_mining/
 │   ├── conftest.py
 │   ├── fixtures/
 │   │   └── synthetic_panel.pkl
-│   ├── unit/                  # 47 unit tests
-│   └── integration/           # 81 integration tests
+│   ├── unit/                  # 124 unit tests
+│   └── integration/           # 81 integration tests (incl. 14 smoke)
 ├── scripts/
 │   └── audit_check.py
 ├── Makefile

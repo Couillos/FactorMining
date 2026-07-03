@@ -1,3 +1,4 @@
+from .interfaces import Factor
 from .momentum import MOM_1D, MOM_7D, MOM_30D, MOM_90D
 from .funding import FUNDING_RATE, FUNDING_RATE_ZS
 from .taker_flow import TAKER_BUY_RATIO, TAKER_NET_VOLUME
@@ -20,13 +21,32 @@ _FACTOR_CLASSES = [
 
 
 class FactorRegistry:
-    def __init__(self):
-        self._factors: dict[str, object] = {}
+    """Registry of all known factor instances, keyed by ``factor.name``."""
+
+    def __init__(self) -> None:
+        self._factors: dict[str, Factor] = {}
         for cls in _FACTOR_CLASSES:
             instance = cls()
             self._factors[instance.name] = instance
 
-    def get(self, name: str) -> object:
+    def get(self, name: str) -> Factor:
+        """Return the factor registered under ``name``.
+
+        Parameters
+        ----------
+        name : str
+            The factor name (e.g. ``"MOM_1D"``).
+
+        Returns
+        -------
+        Factor
+            The :class:`~factor_mining.factors.interfaces.Factor` instance.
+
+        Raises
+        ------
+        KeyError
+            If ``name`` is not a registered factor.
+        """
         return self._factors[name]
 
     def list(self) -> list[str]:

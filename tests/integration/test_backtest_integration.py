@@ -58,11 +58,21 @@ class TestWalkForward:
             assert w.is_end <= w.oos_start
 
     def test_no_overlap_is_oos(self):
+        # IS and OOS must be separated by an embargo gap (>= forward horizon)
+        # to prevent label leakage from forward returns computed at the end
+        # of the IS window.
         from factor_mining.backtest.walk_forward import WalkForwardRunner
-        wf = WalkForwardRunner(is_days=365, oos_days=90, step_days=90)
+        wf = WalkForwardRunner(is_days=365, oos_days=90, step_days=90,
+                               fwd_horizon_days=7)
         windows = wf.get_windows("2023-01-01", "2024-12-31")
+        assert len(windows) > 0
         for w in windows:
-            assert w.is_end == w.oos_start
+            gap = (w.oos_start - w.is_end).days
+            assert gap >= 7, (
+                f"Embargo between IS end ({w.is_end}) and OOS start "
+                f"({w.oos_start}) must be >= 7 days, got {gap}"
+            )
+            assert w.is_end < w.oos_start
 
     def test_windows_non_overlapping(self):
         from factor_mining.backtest.walk_forward import WalkForwardRunner
@@ -73,11 +83,16 @@ class TestWalkForward:
                 assert windows[i].oos_end <= windows[j].oos_start or windows[j].oos_end <= windows[i].oos_start
 
     def test_no_weekend_skipping(self):
+        # Total span = is_days + embargo_days + oos_days. The window must not
+        # skip calendar days (weekends included).
         from factor_mining.backtest.walk_forward import WalkForwardRunner
-        wf = WalkForwardRunner(is_days=7, oos_days=2, step_days=2)
+        wf = WalkForwardRunner(is_days=7, oos_days=2, step_days=2,
+                               fwd_horizon_days=7)
         windows = wf.get_windows("2023-01-01", "2023-01-31")
+        assert len(windows) > 0
+        expected_span = wf.is_days + wf.embargo_days + wf.oos_days
         for w in windows:
-            assert (w.oos_end - w.is_start).days == 9
+            assert (w.oos_end - w.is_start).days == expected_span
 
 
 class TestMetrics:

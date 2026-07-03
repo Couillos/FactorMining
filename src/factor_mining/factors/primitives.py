@@ -29,23 +29,33 @@ def winsor(panel: pd.Series, lower: float = 1.0, upper: float = 99.0) -> pd.Seri
 
 
 def neutralize(panel: pd.Series, category_dummies: pd.DataFrame | None = None) -> pd.Series:
+    """Neutralize signal against category dummies, cross-sectionally per date.
+
+    Uses ``groupby('date_utc').apply()`` instead of a Python for loop over
+    dates (replaces the prior O(N²) per-date mask scan), and catches the
+    specific OLS failure modes (``LinAlgError``, ``ValueError``) rather than
+    a bare ``except`` that silently swallowed all errors.
+    """
     if category_dummies is None:
         return panel
-    dates = panel.index.get_level_values("date_utc").unique()
-    result = panel.copy()
-    for d in dates:
-        mask = panel.index.get_level_values("date_utc") == d
-        y = panel.loc[mask].dropna()
+
+    def _neutralize_group(group: pd.Series) -> pd.Series:
+        # Drop NaN observations and require at least 2 points to fit OLS.
+        y = group.dropna()
         if len(y) < 2:
-            continue
-        X = category_dummies.loc[mask].loc[y.index].astype(float)
-        X = sm.add_constant(X)
+            return pd.Series(np.nan, index=group.index, dtype=float)
+        X = sm.add_constant(category_dummies.loc[y.index].astype(float))
         try:
             model = sm.OLS(y, X).fit()
+            result = pd.Series(np.nan, index=group.index, dtype=float)
             result.loc[y.index] = model.resid
-        except Exception:
-            continue
-    return result
+            return result
+        except (np.linalg.LinAlgError, ValueError):
+            # Singular design matrix or incompatible shapes: return NaN for
+            # this date group rather than silently aborting the whole panel.
+            return pd.Series(np.nan, index=group.index, dtype=float)
+
+    return panel.groupby(level="date_utc", group_keys=False).apply(_neutralize_group)
 
 
 def ts_mean(panel: pd.Series, window: int) -> pd.Series:

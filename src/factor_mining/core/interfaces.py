@@ -8,10 +8,11 @@ class FactorProvider(Protocol):
         ...
 
 
-@runtime_checkable
-class FitnessEvaluator(Protocol):
-    def evaluate(self, signal: pd.Series, fwd_returns: pd.Series) -> tuple[float, float, float]:
-        ...
+# NOTE: ``FitnessEvaluator`` used to live here as a ``Protocol`` in parallel
+# with the ABC in ``factor_mining.fitness.interfaces``. That created two
+# competing abstractions (audit report §3.2 A3, P1) and was therefore removed.
+# The single, authoritative ``FitnessEvaluator`` ABC now lives in
+# ``factor_mining.fitness.interfaces``.
 
 
 @runtime_checkable

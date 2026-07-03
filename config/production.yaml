@@ -1,6 +1,7 @@
 data:
   universe_source: coingecko
   universe_size: 200
+  universe_ttl_hours: 24.0  # CoinGecko universe snapshot TTL
   start: "2021-01-01"
   end: "2024-12-31"
   cache_dir: /data/cache
