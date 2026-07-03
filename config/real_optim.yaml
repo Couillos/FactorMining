@@ -39,8 +39,8 @@ gp:
   pop_size: 200
   n_gen: 100
   min_depth: 2
-  max_depth: 6
-  max_nodes: 25
+  max_depth: 4
+  max_nodes: 17
   crossover_prob: 0.5
   mutation_prob: 0.2
   parsimony: 1.4
@@ -73,4 +73,4 @@ validation:
   is_oos_gap_threshold: 0.50
 
 reporting:
-  output_dir: ./output_real_optim
+  output_dir: ./output_real_optim_v2

@@ -141,6 +141,10 @@ class NSGA2Engine:
                         if random.random() < self.config.gp.mutation_prob:
                             subtree_mutation(offspring[i - 1], self.pset)
 
+                for i, ind in enumerate(offspring):
+                    if len(ind) > self.config.gp.max_nodes:
+                        offspring[i] = self.toolbox.individual()
+
                 self._evaluate_population(offspring)
 
                 pop = tools.selNSGA2(pop + offspring, len(pop))
